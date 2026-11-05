@@ -2,6 +2,7 @@
 
 import logging
 
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_URL, Platform, __version__ as HA_VERSION
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
@@ -142,8 +143,12 @@ async def async_remove_config_entry_device(
 ) -> bool:
     """Allow removing a device Pley doesn't list now, but not the server.
 
-    One that comes back is added again.
+    One that comes back is added again. While the entry isn't loaded, as
+    when the server is out of reach, nothing says which devices are there,
+    so any but the server may go.
     """
+    if entry.state is not ConfigEntryState.LOADED:
+        return pley_device_id(device_entry, entry.unique_id or "") is not None
     coordinator = entry.runtime_data.coordinator
     device_id = pley_device_id(device_entry, coordinator.server.id)
     return device_id is not None and device_id not in coordinator.data.devices

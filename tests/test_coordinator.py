@@ -549,3 +549,38 @@ async def test_remove_device_by_hand(
     assert (
         _device(device_registry, mock_config_entry, f"{SERVER_ID}:app-15") is not None
     )
+
+
+async def test_remove_device_while_setup_retries(
+    hass: HomeAssistant,
+    fake_pley: FakePley,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    hass_ws_client: WebSocketGenerator,
+) -> None:
+    """Test devices may be removed while the server is out of reach, but not the server."""
+    fake_pley.receivers = [TV_RECEIVER]
+    await setup_integration(hass, mock_config_entry)
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    fake_pley.statuses["/api/remote/devices"] = 503
+    assert not await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    assert mock_config_entry.state is ConfigEntryState.SETUP_RETRY
+    assert await async_setup_component(hass, "config", {})
+    client = await hass_ws_client(hass)
+
+    async def remove(device: dr.DeviceEntry | None) -> bool:
+        assert device is not None
+        await client.send_json_auto_id(
+            {
+                "type": "config/device_registry/remove_config_entry",
+                "config_entry_id": mock_config_entry.entry_id,
+                "device_id": device.id,
+            }
+        )
+        return bool((await client.receive_json())["success"])
+
+    assert not await remove(_device(device_registry, mock_config_entry, SERVER_ID))
+    assert await remove(
+        _device(device_registry, mock_config_entry, f"{SERVER_ID}:app-12")
+    )
+    assert _device(device_registry, mock_config_entry, f"{SERVER_ID}:app-12") is None
