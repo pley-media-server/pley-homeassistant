@@ -1,9 +1,9 @@
 name: End to end
 
-# Checks the integration against a real Pley server. No published Pley
-# release signs Home Assistant in yet, so the server is built from Pley's
-# master; the nightly run also catches a change there that breaks the
-# integration.
+# Checks the integration against a real Pley server: on each push and pull
+# request against the latest Docker image, the one people run; each night,
+# and on demand, against Pley's master, to catch a change there that breaks
+# the integration.
 
 on:
   push:
@@ -17,8 +17,57 @@ permissions:
   contents: read
 
 jobs:
+  pley-image:
+    name: e2e (Pley ${{ matrix.pley }} image)
+    # No published image signs Home Assistant in yet; this runs once a
+    # Pley release does.
+    if: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        pley: [latest]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Start Pley
+        id: pley
+        env:
+          IMAGE: ghcr.io/pley-media-server/pley:${{ matrix.pley }}
+        run: |
+          media="$RUNNER_TEMP/media"
+          mkdir -p "$media" "$RUNNER_TEMP/config"
+          # The server reads the tests' film at the path they write it to,
+          # as the runner's user, who owns the folder.
+          docker run -d --name pley -p 7539:7539 \
+            -e PUID="$(id -u)" -e PGID="$(id -g)" \
+            -v "$RUNNER_TEMP/config:/config" -v "$media:$media:ro" "$IMAGE"
+          curl --fail --silent --show-error --retry 60 --retry-delay 1 \
+            --retry-all-errors http://localhost:7539/api/server
+          code=$(docker logs pley 2>&1 | sed -n 's/.*setup?code=\([A-Z0-9-]*\).*/\1/p' | head -n 1)
+          if [ -z "$code" ]; then
+            docker logs pley
+            exit 1
+          fi
+          echo "setup-code=$code" >> "$GITHUB_OUTPUT"
+          echo "media-dir=$media" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - run: pip install -r requirements_test.txt
+      - name: Check against the server
+        env:
+          PLEY_URL: http://localhost:7539
+          PLEY_SETUP_CODE: ${{ steps.pley.outputs.setup-code }}
+          PLEY_MEDIA_DIR: ${{ steps.pley.outputs.media-dir }}
+        run: pytest tests/test_e2e.py
+      - name: Show the server's log
+        if: failure()
+        run: docker logs pley
+
   pley-master:
     name: e2e (Pley master)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -35,8 +84,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: pley -> target
-          # Pull requests reuse the cache without writing their own.
-          save-if: ${{ github.event_name != 'pull_request' }}
       # The tests use the server's API alone: the web app it embeds and
       # the transcoder aren't needed, and a release build allows the web
       # app missing.
