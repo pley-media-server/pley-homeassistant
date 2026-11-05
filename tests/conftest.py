@@ -1,11 +1,14 @@
 """Fixtures for the Pley integration tests."""
 
 import base64
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Generator
 import hashlib
 import hmac
+import time
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
+from homeassistant.const import CONF_URL
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import (
@@ -14,7 +17,14 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
 )
 from yarl import URL
 
-from custom_components.pley.const import DOMAIN
+from custom_components.pley.const import (
+    CONF_TOKENS,
+    CONF_USER_ID,
+    CONF_USERNAME,
+    DOMAIN,
+    OPT_SHOWN_KINDS,
+)
+from custom_components.pley.pleyclient import Tokens
 
 # A Pley server's id, as GET /api/server answers it; the entry's unique ID.
 SERVER_ID = "3f2a9c1e-5b7d-4e8f-a6c0-1d2e3f4a5b6c"
@@ -27,6 +37,30 @@ USER_AGENT = "pleyHomeAssistant/0.1.0 (Home Assistant 2026.10.4)"
 # hands them out.
 PROOF_ID = "17"
 PROOF_KEY = base64.urlsafe_b64encode(bytes(range(32))).rstrip(b"=").decode()
+
+# Where the server signs apps in, as its metadata says.
+METADATA = {
+    "issuer": SERVER_URL,
+    "token_endpoint": f"{SERVER_URL}/api/oauth/token",
+    "revocation_endpoint": f"{SERVER_URL}/api/oauth/revoke",
+    "device_authorization_endpoint": f"{SERVER_URL}/api/oauth/device",
+    "grant_types_supported": [
+        "authorization_code",
+        "refresh_token",
+        "urn:ietf:params:oauth:grant-type:device_code",
+    ],
+    "scopes_supported": ["library", "play", "playlists", "activity"],
+}
+DEVICE_CODE = {
+    "device_code": "secret-device-code",
+    "user_code": "BCDF-GHJK",
+    "verification_uri": f"{SERVER_URL}/link",
+    "verification_uri_complete": f"{SERVER_URL}/link?code=BCDFGHJK",
+    "expires_in": 600,
+    "interval": 5,
+}
+# The profile Home Assistant signs in as, from GET /api/auth/me.
+ME = {"id": 1, "username": "ada", "name": "Ada", "scope": "library play activity"}
 
 type SideEffect = Callable[[str, URL, Any], Awaitable[AiohttpClientMockResponse]]
 
@@ -99,6 +133,15 @@ def mock_proof(aioclient_mock: AiohttpClientMocker) -> None:
     aioclient_mock.get(f"{SERVER_URL}/api/server", side_effect=proving_server())
 
 
+def mock_server(aioclient_mock: AiohttpClientMocker) -> None:
+    """Answer as a Pley server that signs Home Assistant in, as profile ME."""
+    mock_proof(aioclient_mock)
+    aioclient_mock.get(
+        f"{SERVER_URL}/.well-known/oauth-authorization-server", json=METADATA
+    )
+    aioclient_mock.get(f"{SERVER_URL}/api/auth/me", json=ME)
+
+
 def requests_to(
     aioclient_mock: AiohttpClientMocker, method: str, path: str
 ) -> list[tuple[str, URL, Any, Any]]:
@@ -117,5 +160,34 @@ def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
 
 @pytest.fixture
 def mock_config_entry() -> MockConfigEntry:
-    """Return a Pley config entry."""
-    return MockConfigEntry(domain=DOMAIN, title="Living room", unique_id=SERVER_ID)
+    """Return a Pley config entry, signed in as profile ME."""
+    tokens = Tokens.from_answer(token_answer(), time.time())
+    assert tokens is not None
+    return MockConfigEntry(
+        domain=DOMAIN,
+        title="Living room",
+        unique_id=SERVER_ID,
+        data={
+            CONF_URL: SERVER_URL,
+            CONF_TOKENS: tokens.as_dict(),
+            CONF_USER_ID: ME["id"],
+            CONF_USERNAME: ME["username"],
+        },
+        options={OPT_SHOWN_KINDS: ["tv"]},
+    )
+
+
+@pytest.fixture
+def mock_setup_entry() -> Generator[AsyncMock]:
+    """Keep the integration from setting up, for tests of the flows alone."""
+    with patch(
+        "custom_components.pley.async_setup_entry", return_value=True
+    ) as setup_entry:
+        yield setup_entry
+
+
+@pytest.fixture
+def no_waiting() -> Generator[AsyncMock]:
+    """Have the client wait for nothing, as between polls for a sign-in."""
+    with patch("custom_components.pley.pleyclient.client.sleep") as sleep:
+        yield sleep

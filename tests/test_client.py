@@ -54,6 +54,8 @@ from custom_components.pley.pleyclient.models import parse_list
 
 from .conftest import (
     CLIENT_ID,
+    DEVICE_CODE,
+    METADATA,
     PROOF_ID,
     PROOF_KEY,
     SERVER_ID,
@@ -66,26 +68,6 @@ from .conftest import (
     token_answer,
 )
 
-METADATA = {
-    "issuer": SERVER_URL,
-    "token_endpoint": f"{SERVER_URL}/api/oauth/token",
-    "revocation_endpoint": f"{SERVER_URL}/api/oauth/revoke",
-    "device_authorization_endpoint": f"{SERVER_URL}/api/oauth/device",
-    "grant_types_supported": [
-        "authorization_code",
-        "refresh_token",
-        "urn:ietf:params:oauth:grant-type:device_code",
-    ],
-    "scopes_supported": ["library", "play", "playlists", "activity"],
-}
-DEVICE_CODE = {
-    "device_code": "secret-device-code",
-    "user_code": "BCDF-GHJK",
-    "verification_uri": f"{SERVER_URL}/link",
-    "verification_uri_complete": f"{SERVER_URL}/link?code=BCDFGHJK",
-    "expires_in": 600,
-    "interval": 5,
-}
 # A film playing on the profile's own TV, as GET /api/sessions lists it.
 FILM_SESSION = {
     "session_id": "a1b2",
@@ -705,7 +687,7 @@ async def test_device_sign_in_refused(
 async def test_verify(client: PleyClient, aioclient_mock: AiohttpClientMocker) -> None:
     """Test the server proves itself with a fresh challenge each time."""
     mock_proof(aioclient_mock)
-    await client.verify()
+    assert await client.verify() == ServerInfo(SERVER_ID, "Living room", "0.2.0")
     await client.verify()
     first, second = (call[1].query for call in aioclient_mock.mock_calls)
     assert first["proof_id"] == PROOF_ID

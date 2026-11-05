@@ -484,8 +484,8 @@ class PleyClient:
             raise PleyAuthError("not signed in")
         return self._tokens
 
-    async def verify(self) -> None:
-        """Make sure the server at the address is the one signed in to.
+    async def verify(self) -> ServerInfo:
+        """Make sure the server at the address is the one signed in to, and return it.
 
         It answers a random challenge with an HMAC under the sign-in's proof
         key. Raises WrongServer if it can't, and PleyConnectionError if it
@@ -509,6 +509,7 @@ class PleyClient:
             ):
                 raise WrongServer(f"{self._url} can't prove it is the server")
         self._verified_until = time.monotonic() + PROOF_LIFETIME
+        return server
 
     async def ensure_token(self) -> str:
         """Return a current access token, for a server that has proved itself."""

@@ -1,9 +1,91 @@
 {
   "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Add a Pley server",
+        "description": "Enter the address you open Pley at in a browser. You'll sign in with a code next.",
+        "data": {
+          "url": "Address"
+        },
+        "data_description": {
+          "url": "For example 192.168.1.20, pley.local or https://pley.example.com. Without a port, http goes to Pley's own, 7539. Plain http is only for the local network."
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "Pley server found",
+        "description": "Do you want to add the Pley server {name} at {url}? You'll sign in with a code next."
+      },
+      "reauth_confirm": {
+        "title": "Authentication expired for {name}",
+        "description": "The Pley server {name} at {url} no longer accepts Home Assistant's sign-in. Sign in again with a code, as the same profile."
+      },
+      "link": {
+        "title": "Sign in to Pley"
+      },
+      "link_failed": {
+        "title": "Sign-in didn't finish",
+        "description": "Submit to get a new code and try again."
+      }
+    },
+    "progress": {
+      "wait_for_sign_in": "On a phone or computer, open [{url}]({link}) and enter this code:\n\n**{code}**\n\nSign in to Pley there if it asks, then allow Pley for Home Assistant. This continues once you have."
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "denied": "The sign-in was refused on Pley's link page.",
+      "expired": "The code expired before anyone allowed it.",
+      "invalid_url": "That isn't a server's address. Enter a host name or an IP address, with a port if it isn't 7539.",
+      "issuer_mismatch": "The server answers as a different address. If it is behind a reverse proxy, make the proxy pass the original Host header on.",
+      "not_pley": "Something other than a Pley server answers at this address.",
+      "too_many_sign_ins": "Too many sign-ins with a code are waiting on the server. Try again in a few minutes.",
+      "too_old": "This Pley server is too old for Home Assistant. Update Pley, then try again.",
+      "unencrypted": "Plain http is only for the local network. Use an https address for a server elsewhere.",
+      "unknown": "Unexpected error",
+      "wrong_server": "A different Pley server, or another device, answers at this address."
+    },
     "abort": {
       "already_configured": "Device is already configured",
+      "already_in_progress": "This is already being configured. Finish the existing configuration before starting again.",
+      "not_pley": "This isn't a Pley server Home Assistant can add.",
       "reauth_successful": "Re-authentication was successful",
-      "reconfigure_successful": "Reconfiguration was successful"
+      "reconfigure_successful": "Reconfiguration was successful",
+      "wrong_profile": "You signed in as {username}, a different Pley profile than this entry's. To use another profile, delete the entry and add Pley again.",
+      "wrong_server": "A different Pley server answers at this address than the one this entry is for."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Devices shown by default",
+        "description": "Pley adds a media player for each device that plays or is ready to. Devices of the kinds chosen here start enabled; the others start disabled. This applies to devices Pley first sees from now on: enable or disable one seen before on its device page.",
+        "data": {
+          "shown_kinds": "Devices shown by default"
+        }
+      }
+    }
+  },
+  "selector": {
+    "device_kind": {
+      "options": {
+        "tv": "TVs",
+        "phone": "Phones",
+        "tablet": "Tablets",
+        "computer": "Computers",
+        "browser": "Web browsers",
+        "other": "Other devices"
+      }
+    }
+  },
+  "exceptions": {
+    "auth_failed": {
+      "message": "The Pley server no longer accepts Home Assistant's sign-in."
+    },
+    "cannot_connect": {
+      "message": "Can't reach the Pley server at {url}."
+    },
+    "wrong_server": {
+      "message": "A different Pley server, or another device, answers at {url}, so Home Assistant sends it no token."
     }
   }
 }
