@@ -1,7 +1,9 @@
 """Generate translations/en.json from strings.json.
 
 Home Assistant only resolves [%key:...] references for core integrations,
-so custom integrations must ship them resolved.
+so custom integrations must ship them resolved. A reference is to Home
+Assistant's common strings, or to another of the integration's own
+(component::pley::...).
 
 Usage: python script/translations.py
 """
@@ -18,11 +20,14 @@ KEY_RE = re.compile(r"\[%key:([a-z0-9_:]+)%\]")
 
 
 def lookup(key: str) -> str:
-    """Return Home Assistant's common string for a [%key:...%] reference."""
+    """Return the string a [%key:...%] reference names."""
     node = COMMON
-    for part in key.split("::"):
+    parts = key.split("::")
+    if parts[:2] == ["component", "pley"]:
+        node, parts = strings, parts[2:]
+    for part in parts:
         node = node[part]
-    return node
+    return resolve(node)
 
 
 def resolve(value):

@@ -1,5 +1,6 @@
 """Constants for the Pley integration."""
 
+from datetime import timedelta
 from typing import Final
 
 from .pleyclient import DeviceKind
@@ -35,3 +36,18 @@ DEVICE_KINDS: Final = [
     DeviceKind.BROWSER.value,
     DeviceKind.OTHER.value,
 ]
+
+# How often the devices are fetched again besides when the server says
+# something changed: often while something plays, so a missed event costs
+# little, and rarely when nothing does.
+PLAYING_INTERVAL: Final = timedelta(seconds=30)
+IDLE_INTERVAL: Final = timedelta(minutes=5)
+# Events in a burst, such as a pause and the report after it, are fetched
+# for once: at once, then at most once more a second later.
+REFRESH_COOLDOWN: Final = 1.0
+# How long to wait before listening again after another device answered at
+# the server's address.
+EVENTS_RETRY_INTERVAL: Final = timedelta(minutes=5)
+
+# The width artwork is fetched at: enough for a media card.
+IMAGE_WIDTH: Final = 640

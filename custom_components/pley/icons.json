@@ -1,0 +1,41 @@
+{
+  "entity": {
+    "media_player": {
+      "tv": {
+        "default": "mdi:television",
+        "state": {
+          "off": "mdi:television-off",
+          "playing": "mdi:television-play"
+        }
+      },
+      "phone": {
+        "default": "mdi:cellphone",
+        "state": {
+          "off": "mdi:cellphone-off",
+          "playing": "mdi:cellphone-play"
+        }
+      },
+      "tablet": {
+        "default": "mdi:tablet"
+      },
+      "computer": {
+        "default": "mdi:laptop",
+        "state": {
+          "off": "mdi:laptop-off"
+        }
+      },
+      "browser": {
+        "default": "mdi:web",
+        "state": {
+          "off": "mdi:web-off"
+        }
+      },
+      "other": {
+        "default": "mdi:play-box",
+        "state": {
+          "off": "mdi:play-box-outline"
+        }
+      }
+    }
+  }
+}

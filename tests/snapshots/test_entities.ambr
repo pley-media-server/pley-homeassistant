@@ -1,0 +1,329 @@
+# serializer version: 1
+# name: test_devices
+  list([
+    DeviceRegistryEntrySnapshot({
+      'area_id': None,
+      'config_entry_id': <ANY>,
+      'config_subentry_id': <ANY>,
+      'configuration_url': None,
+      'connections': set({
+      }),
+      'disabled_by': None,
+      'entry_type': None,
+      'hw_version': None,
+      'id': <ANY>,
+      'identifiers': set({
+        tuple(
+          'pley',
+          '3f2a9c1e-5b7d-4e8f-a6c0-1d2e3f4a5b6c:app-15',
+        ),
+      }),
+      'labels': set({
+      }),
+      'manufacturer': None,
+      'model': 'Phone',
+      'model_id': None,
+      'name': "Ada's phone",
+      'name_by_user': None,
+      'serial_number': None,
+      'sw_version': None,
+      'via_device_id': <ANY>,
+    }),
+    DeviceRegistryEntrySnapshot({
+      'area_id': None,
+      'config_entry_id': <ANY>,
+      'config_subentry_id': <ANY>,
+      'configuration_url': None,
+      'connections': set({
+      }),
+      'disabled_by': None,
+      'entry_type': None,
+      'hw_version': None,
+      'id': <ANY>,
+      'identifiers': set({
+        tuple(
+          'pley',
+          '3f2a9c1e-5b7d-4e8f-a6c0-1d2e3f4a5b6c:web-9f2c4e1a7b3d5c6e',
+        ),
+      }),
+      'labels': set({
+      }),
+      'manufacturer': None,
+      'model': 'Web browser',
+      'model_id': None,
+      'name': 'Firefox on macOS',
+      'name_by_user': None,
+      'serial_number': None,
+      'sw_version': None,
+      'via_device_id': <ANY>,
+    }),
+    DeviceRegistryEntrySnapshot({
+      'area_id': None,
+      'config_entry_id': <ANY>,
+      'config_subentry_id': <ANY>,
+      'configuration_url': 'http://192.168.1.20:7539',
+      'connections': set({
+      }),
+      'disabled_by': None,
+      'entry_type': None,
+      'hw_version': None,
+      'id': <ANY>,
+      'identifiers': set({
+        tuple(
+          'pley',
+          '3f2a9c1e-5b7d-4e8f-a6c0-1d2e3f4a5b6c',
+        ),
+      }),
+      'labels': set({
+      }),
+      'manufacturer': 'Pley',
+      'model': None,
+      'model_id': None,
+      'name': 'Living room',
+      'name_by_user': None,
+      'serial_number': None,
+      'sw_version': '0.2.0',
+      'via_device_id': None,
+    }),
+    DeviceRegistryEntrySnapshot({
+      'area_id': None,
+      'config_entry_id': <ANY>,
+      'config_subentry_id': <ANY>,
+      'configuration_url': None,
+      'connections': set({
+      }),
+      'disabled_by': None,
+      'entry_type': None,
+      'hw_version': None,
+      'id': <ANY>,
+      'identifiers': set({
+        tuple(
+          'pley',
+          '3f2a9c1e-5b7d-4e8f-a6c0-1d2e3f4a5b6c:app-12',
+        ),
+      }),
+      'labels': set({
+      }),
+      'manufacturer': None,
+      'model': 'TV',
+      'model_id': None,
+      'name': 'Living room TV',
+      'name_by_user': None,
+      'serial_number': None,
+      'sw_version': None,
+      'via_device_id': <ANY>,
+    }),
+  ])
+# ---
+# name: test_entities[media_player.ada_s_phone-entry]
+  EntityRegistryEntrySnapshot({
+    'aliases': list([
+      None,
+    ]),
+    'area_id': None,
+    'capabilities': dict({
+    }),
+    'config_entry_id': <ANY>,
+    'config_subentry_id': <ANY>,
+    'device_class': None,
+    'device_id': <ANY>,
+    'disabled_by': None,
+    'domain': 'media_player',
+    'entity_category': None,
+    'entity_id': 'media_player.ada_s_phone',
+    'has_entity_name': True,
+    'hidden_by': None,
+    'icon': None,
+    'id': <ANY>,
+    'labels': set({
+    }),
+    'name': None,
+    'object_id_base': None,
+    'options': dict({
+    }),
+    'original_device_class': None,
+    'original_icon': None,
+    'original_name': None,
+    'platform': 'pley',
+    'previous_unique_id': None,
+    'suggested_object_id': None,
+    'supported_features': <MediaPlayerEntityFeature: 20483>,
+    'translation_key': 'phone',
+    'unique_id': '3f2a9c1e-5b7d-4e8f-a6c0-1d2e3f4a5b6c:app-15',
+    'unit_of_measurement': None,
+  })
+# ---
+# name: test_entities[media_player.ada_s_phone-state]
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      'controls': list([
+        'pause',
+        'play',
+        'seek',
+      ]),
+      'device_kind': 'phone',
+      <EntityStateAttribute.ENTITY_PICTURE: 'entity_picture'>: '/api/media_player_proxy/media_player.ada_s_phone?token=0123456789abcdef&cache=14f95d73b8d0d5f6',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: "Ada's phone",
+      <MediaPlayerEntityStateAttribute.MEDIA_CONTENT_ID: 'media_content_id'>: 'pley://item/310',
+      <MediaPlayerEntityStateAttribute.MEDIA_CONTENT_TYPE: 'media_content_type'>: <MediaType.EPISODE: 'episode'>,
+      <MediaPlayerEntityStateAttribute.MEDIA_DURATION: 'media_duration'>: 2580,
+      <MediaPlayerEntityStateAttribute.MEDIA_EPISODE: 'media_episode'>: '5',
+      <MediaPlayerEntityStateAttribute.MEDIA_POSITION: 'media_position'>: 1200,
+      <MediaPlayerEntityStateAttribute.MEDIA_POSITION_UPDATED_AT: 'media_position_updated_at'>: HAFakeDatetime(2026, 11, 5, 19, 0, tzinfo=datetime.timezone.utc),
+      <MediaPlayerEntityStateAttribute.MEDIA_SEASON: 'media_season'>: '4',
+      <MediaPlayerEntityStateAttribute.MEDIA_SERIES_TITLE: 'media_series_title'>: 'Lost',
+      <MediaPlayerEntityStateAttribute.MEDIA_TITLE: 'media_title'>: 'The Constant',
+      <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <MediaPlayerEntityFeature: 20483>,
+      'username': 'ada',
+    }),
+    'context': <ANY>,
+    'entity_id': 'media_player.ada_s_phone',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'paused',
+  })
+# ---
+# name: test_entities[media_player.firefox_on_macos-entry]
+  EntityRegistryEntrySnapshot({
+    'aliases': list([
+      None,
+    ]),
+    'area_id': None,
+    'capabilities': dict({
+    }),
+    'config_entry_id': <ANY>,
+    'config_subentry_id': <ANY>,
+    'device_class': None,
+    'device_id': <ANY>,
+    'disabled_by': None,
+    'domain': 'media_player',
+    'entity_category': None,
+    'entity_id': 'media_player.firefox_on_macos',
+    'has_entity_name': True,
+    'hidden_by': None,
+    'icon': None,
+    'id': <ANY>,
+    'labels': set({
+    }),
+    'name': None,
+    'object_id_base': None,
+    'options': dict({
+    }),
+    'original_device_class': None,
+    'original_icon': None,
+    'original_name': None,
+    'platform': 'pley',
+    'previous_unique_id': None,
+    'suggested_object_id': None,
+    'supported_features': <MediaPlayerEntityFeature: 4096>,
+    'translation_key': 'browser',
+    'unique_id': '3f2a9c1e-5b7d-4e8f-a6c0-1d2e3f4a5b6c:web-9f2c4e1a7b3d5c6e',
+    'unit_of_measurement': None,
+  })
+# ---
+# name: test_entities[media_player.firefox_on_macos-state]
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      'device_kind': 'browser',
+      <EntityStateAttribute.ENTITY_PICTURE: 'entity_picture'>: '/api/media_player_proxy/media_player.firefox_on_macos?token=0123456789abcdef&cache=ae08bc62fb21925d',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Firefox on macOS',
+      <MediaPlayerEntityStateAttribute.MEDIA_ALBUM_ARTIST: 'media_album_artist'>: 'Massive Attack',
+      <MediaPlayerEntityStateAttribute.MEDIA_ALBUM_NAME: 'media_album_name'>: 'Mezzanine',
+      <MediaPlayerEntityStateAttribute.MEDIA_ARTIST: 'media_artist'>: 'Massive Attack',
+      <MediaPlayerEntityStateAttribute.MEDIA_CONTENT_ID: 'media_content_id'>: 'pley://item/905',
+      <MediaPlayerEntityStateAttribute.MEDIA_CONTENT_TYPE: 'media_content_type'>: <MediaType.TRACK: 'track'>,
+      <MediaPlayerEntityStateAttribute.MEDIA_DURATION: 'media_duration'>: 330,
+      <MediaPlayerEntityStateAttribute.MEDIA_POSITION: 'media_position'>: 30,
+      <MediaPlayerEntityStateAttribute.MEDIA_POSITION_UPDATED_AT: 'media_position_updated_at'>: HAFakeDatetime(2026, 11, 5, 18, 59, 55, tzinfo=datetime.timezone.utc),
+      <MediaPlayerEntityStateAttribute.MEDIA_TITLE: 'media_title'>: 'Teardrop',
+      <MediaPlayerEntityStateAttribute.MEDIA_TRACK: 'media_track'>: 3,
+      'method': 'transcode',
+      <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <MediaPlayerEntityFeature: 4096>,
+      'username': 'grace',
+    }),
+    'context': <ANY>,
+    'entity_id': 'media_player.firefox_on_macos',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'playing',
+  })
+# ---
+# name: test_entities[media_player.living_room_tv-entry]
+  EntityRegistryEntrySnapshot({
+    'aliases': list([
+      None,
+    ]),
+    'area_id': None,
+    'capabilities': dict({
+    }),
+    'config_entry_id': <ANY>,
+    'config_subentry_id': <ANY>,
+    'device_class': None,
+    'device_id': <ANY>,
+    'disabled_by': None,
+    'domain': 'media_player',
+    'entity_category': None,
+    'entity_id': 'media_player.living_room_tv',
+    'has_entity_name': True,
+    'hidden_by': None,
+    'icon': None,
+    'id': <ANY>,
+    'labels': set({
+    }),
+    'name': None,
+    'object_id_base': None,
+    'options': dict({
+    }),
+    'original_device_class': <MediaPlayerDeviceClass.TV: 'tv'>,
+    'original_icon': None,
+    'original_name': None,
+    'platform': 'pley',
+    'previous_unique_id': None,
+    'suggested_object_id': None,
+    'supported_features': <MediaPlayerEntityFeature: 20531>,
+    'translation_key': 'tv',
+    'unique_id': '3f2a9c1e-5b7d-4e8f-a6c0-1d2e3f4a5b6c:app-12',
+    'unit_of_measurement': None,
+  })
+# ---
+# name: test_entities[media_player.living_room_tv-state]
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      'casts': list([
+        'item',
+        'live',
+      ]),
+      'controls': list([
+        'audio',
+        'next',
+        'pause',
+        'play',
+        'previous',
+        'quality',
+        'seek',
+        'skip',
+        'subtitles',
+      ]),
+      <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'tv',
+      'device_kind': 'tv',
+      <EntityStateAttribute.ENTITY_PICTURE: 'entity_picture'>: '/api/media_player_proxy/media_player.living_room_tv?token=0123456789abcdef&cache=f5d0f2a9e46dae05',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Living room TV',
+      <MediaPlayerEntityStateAttribute.MEDIA_CONTENT_ID: 'media_content_id'>: 'pley://item/42',
+      <MediaPlayerEntityStateAttribute.MEDIA_CONTENT_TYPE: 'media_content_type'>: <MediaType.MOVIE: 'movie'>,
+      <MediaPlayerEntityStateAttribute.MEDIA_DURATION: 'media_duration'>: 6960,
+      <MediaPlayerEntityStateAttribute.MEDIA_POSITION: 'media_position'>: 602,
+      <MediaPlayerEntityStateAttribute.MEDIA_POSITION_UPDATED_AT: 'media_position_updated_at'>: HAFakeDatetime(2026, 11, 5, 19, 0, tzinfo=datetime.timezone.utc),
+      <MediaPlayerEntityStateAttribute.MEDIA_TITLE: 'media_title'>: 'Arrival',
+      <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <MediaPlayerEntityFeature: 20531>,
+      'username': 'ada',
+    }),
+    'context': <ANY>,
+    'entity_id': 'media_player.living_room_tv',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'playing',
+  })
+# ---

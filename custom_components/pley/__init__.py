@@ -1,9 +1,7 @@
 """The Pley integration."""
 
-from dataclasses import dataclass
 import logging
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_URL, Platform, __version__ as HA_VERSION
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
@@ -12,12 +10,11 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.loader import async_get_integration
 
 from .const import CLIENT_ID, CONF_TOKENS, DOMAIN, USER_AGENT_PRODUCT
+from .coordinator import PleyConfigEntry, PleyCoordinator, PleyRuntimeData
 from .pleyclient import (
-    Account,
     PleyAuthError,
     PleyClient,
     PleyError,
-    ServerInfo,
     Tokens,
     TokensCallback,
     WrongServer,
@@ -25,19 +22,7 @@ from .pleyclient import (
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = []
-
-
-@dataclass
-class PleyRuntimeData:
-    """What a loaded entry holds: the client, and whom it signed in to as whom."""
-
-    client: PleyClient
-    server: ServerInfo
-    account: Account
-
-
-type PleyConfigEntry = ConfigEntry[PleyRuntimeData]
+PLATFORMS: list[Platform] = [Platform.MEDIA_PLAYER]
 
 
 async def async_create_client(
@@ -97,8 +82,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: PleyConfigEntry) -> bool
             translation_placeholders=placeholders,
         ) from err
 
-    entry.runtime_data = PleyRuntimeData(client=client, server=server, account=account)
-    dr.async_get(hass).async_get_or_create(
+    coordinator = PleyCoordinator(hass, entry, client, server, account)
+    await coordinator.async_config_entry_first_refresh()
+    server_device = dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, server.id)},
         manufacturer="Pley",
@@ -106,7 +92,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: PleyConfigEntry) -> bool
         sw_version=server.version,
         configuration_url=url,
     )
+    entry.runtime_data = PleyRuntimeData(
+        client=client,
+        server=server,
+        account=account,
+        coordinator=coordinator,
+        server_device_id=server_device.id,
+    )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # Cancelled when the entry unloads.
+    entry.async_create_background_task(
+        hass, coordinator.async_listen(), "Listen to Pley's events"
+    )
     return True
 
 

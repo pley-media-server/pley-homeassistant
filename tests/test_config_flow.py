@@ -35,6 +35,7 @@ from .conftest import (
     METADATA,
     SERVER_ID,
     SERVER_URL,
+    FakePley,
     answers,
     mock_proof,
     mock_server,
@@ -593,7 +594,7 @@ async def test_options(
     mock_config_entry: MockConfigEntry,
 ) -> None:
     """Test choosing the kinds of device shown by default reloads the entry."""
-    mock_server(aioclient_mock)
+    FakePley(aioclient_mock)
     mock_config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(mock_config_entry.entry_id)
     await hass.async_block_till_done()

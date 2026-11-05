@@ -77,6 +77,142 @@
       }
     }
   },
+  "entity": {
+    "media_player": {
+      "tv": {
+        "state_attributes": {
+          "device_kind": {
+            "name": "Kind of device"
+          },
+          "username": {
+            "name": "Profile"
+          },
+          "controls": {
+            "name": "Controls"
+          },
+          "casts": {
+            "name": "Plays when sent"
+          },
+          "method": {
+            "name": "Playback"
+          },
+          "next_program": {
+            "name": "Up next"
+          }
+        }
+      },
+      "phone": {
+        "state_attributes": {
+          "device_kind": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::device_kind::name%]"
+          },
+          "username": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::username::name%]"
+          },
+          "controls": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::controls::name%]"
+          },
+          "casts": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::casts::name%]"
+          },
+          "method": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::method::name%]"
+          },
+          "next_program": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::next_program::name%]"
+          }
+        }
+      },
+      "tablet": {
+        "state_attributes": {
+          "device_kind": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::device_kind::name%]"
+          },
+          "username": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::username::name%]"
+          },
+          "controls": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::controls::name%]"
+          },
+          "casts": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::casts::name%]"
+          },
+          "method": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::method::name%]"
+          },
+          "next_program": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::next_program::name%]"
+          }
+        }
+      },
+      "computer": {
+        "state_attributes": {
+          "device_kind": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::device_kind::name%]"
+          },
+          "username": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::username::name%]"
+          },
+          "controls": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::controls::name%]"
+          },
+          "casts": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::casts::name%]"
+          },
+          "method": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::method::name%]"
+          },
+          "next_program": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::next_program::name%]"
+          }
+        }
+      },
+      "browser": {
+        "state_attributes": {
+          "device_kind": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::device_kind::name%]"
+          },
+          "username": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::username::name%]"
+          },
+          "controls": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::controls::name%]"
+          },
+          "casts": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::casts::name%]"
+          },
+          "method": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::method::name%]"
+          },
+          "next_program": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::next_program::name%]"
+          }
+        }
+      },
+      "other": {
+        "state_attributes": {
+          "device_kind": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::device_kind::name%]"
+          },
+          "username": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::username::name%]"
+          },
+          "controls": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::controls::name%]"
+          },
+          "casts": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::casts::name%]"
+          },
+          "method": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::method::name%]"
+          },
+          "next_program": {
+            "name": "[%key:component::pley::entity::media_player::tv::state_attributes::next_program::name%]"
+          }
+        }
+      }
+    }
+  },
   "exceptions": {
     "auth_failed": {
       "message": "The Pley server no longer accepts Home Assistant's sign-in."
@@ -86,6 +222,27 @@
     },
     "wrong_server": {
       "message": "A different Pley server, or another device, answers at {url}, so Home Assistant sends it no token."
+    },
+    "update_failed": {
+      "message": "Can't fetch what plays from the Pley server: {error}"
+    },
+    "not_playing": {
+      "message": "Nothing is playing on this device now."
+    },
+    "not_controllable": {
+      "message": "This device doesn't take that command from a remote."
+    },
+    "too_many_commands": {
+      "message": "Too many commands went to this device at once. Try again in a moment."
+    },
+    "session_gone": {
+      "message": "What was playing has stopped, or the device has gone."
+    },
+    "forbidden": {
+      "message": "The Pley server doesn't let Home Assistant do that: {error}"
+    },
+    "command_failed": {
+      "message": "The Pley server refused the command: {error}"
     }
   }
 }

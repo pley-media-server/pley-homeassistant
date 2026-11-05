@@ -23,6 +23,7 @@ from .conftest import (
     ME,
     SERVER_ID,
     SERVER_URL,
+    FakePley,
     mock_server,
     proving_server,
     requests_to,
@@ -43,7 +44,7 @@ async def test_setup_and_unload(
     device_registry: dr.DeviceRegistry,
 ) -> None:
     """Test the server proves itself, and is shown as a device."""
-    mock_server(aioclient_mock)
+    FakePley(aioclient_mock)
     await _setup(hass, mock_config_entry)
     assert mock_config_entry.state is ConfigEntryState.LOADED
 
@@ -51,7 +52,7 @@ async def test_setup_and_unload(
     assert data.server == ServerInfo(SERVER_ID, "Living room", "0.2.0")
     assert data.account == Account(1, "ada", "Ada", frozenset(ME["scope"].split()))
     # The proof comes before the token goes anywhere.
-    proof, me = aioclient_mock.mock_calls
+    proof, me, *fetches = aioclient_mock.mock_calls
     assert proof[1].query["proof_id"]
     assert "Authorization" not in proof[3]
     assert me[3]["Authorization"] == "Bearer pley_at_first"
@@ -59,6 +60,16 @@ async def test_setup_and_unload(
     assert (
         me[3]["User-Agent"] == f"pleyHomeAssistant/0.1.0 (Home Assistant {HA_VERSION})"
     )
+    # Then the devices, and the events, as a remote rather than a device to
+    # play on.
+    assert sorted(call[1].path for call in fetches) == [
+        "/api/activity",
+        "/api/events",
+        "/api/remote/devices",
+        "/api/sessions",
+    ]
+    (events,) = requests_to(aioclient_mock, "GET", "/api/events")
+    assert not events[1].query
 
     (device,) = dr.async_entries_for_config_entry(
         device_registry, mock_config_entry.entry_id
@@ -187,7 +198,7 @@ async def test_refreshed_tokens_saved_before_use(
         return AiohttpClientMockResponse(method, url, json=ME)
 
     aioclient_mock.get(f"{SERVER_URL}/api/auth/me", side_effect=me)
-    mock_server(aioclient_mock)
+    FakePley(aioclient_mock)
     await hass.config_entries.async_setup(mock_config_entry.entry_id)
     await hass.async_block_till_done()
 
@@ -207,7 +218,7 @@ async def test_remove_signs_out(
 ) -> None:
     """Test removing the entry signs Home Assistant out of the server."""
     aioclient_mock.post(f"{SERVER_URL}/api/oauth/revoke", text="")
-    mock_server(aioclient_mock)
+    FakePley(aioclient_mock)
     await _setup(hass, mock_config_entry)
 
     await hass.config_entries.async_remove(mock_config_entry.entry_id)

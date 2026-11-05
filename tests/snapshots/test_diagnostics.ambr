@@ -1,0 +1,106 @@
+# serializer version: 1
+# name: test_diagnostics
+  dict({
+    'devices': list([
+      dict({
+        'device_id': 'app-12',
+        'kind': 'tv',
+        'own': True,
+        'receiver': dict({
+          'casts': list([
+            'item',
+            'live',
+          ]),
+        }),
+        'session': dict({
+          'age_ms': 2000,
+          'channel': dict({
+            'id': 7,
+          }),
+          'controls': list([
+            'next',
+            'previous',
+          ]),
+          'duration_ms': None,
+          'item': None,
+          'kind': 'live',
+          'method': 'unknown',
+          'position_ms': 0,
+          'state': 'playing',
+          'updated_at': '2026-11-05T18:59:58+00:00',
+        }),
+      }),
+      dict({
+        'device_id': 'app-15',
+        'kind': 'phone',
+        'own': True,
+        'receiver': None,
+        'session': dict({
+          'age_ms': 40000,
+          'channel': None,
+          'controls': list([
+            'pause',
+            'play',
+            'seek',
+          ]),
+          'duration_ms': 2580000,
+          'item': dict({
+            'id': 310,
+            'kind': 'episode',
+          }),
+          'kind': 'item',
+          'method': 'unknown',
+          'position_ms': 1200000,
+          'state': 'paused',
+          'updated_at': '2026-11-05T18:59:20+00:00',
+        }),
+      }),
+      dict({
+        'device_id': 'web-9f2c4e1a7b3d5c6e',
+        'kind': 'browser',
+        'own': False,
+        'receiver': None,
+        'session': dict({
+          'age_ms': 0,
+          'channel': None,
+          'controls': list([
+          ]),
+          'duration_ms': 330000,
+          'item': dict({
+            'id': 905,
+            'kind': 'track',
+          }),
+          'kind': 'item',
+          'method': 'transcode',
+          'position_ms': 30000,
+          'state': 'playing',
+          'updated_at': None,
+        }),
+      }),
+    ]),
+    'entry': dict({
+      'data': dict({
+        'tokens': '**REDACTED**',
+        'url': '**REDACTED**',
+        'user_id': '**REDACTED**',
+        'username': '**REDACTED**',
+      }),
+      'options': dict({
+        'shown_kinds': list([
+          'tv',
+        ]),
+      }),
+    }),
+    'fetched_at': '2026-11-05T19:00:00+00:00',
+    'last_update_success': True,
+    'scopes': list([
+      'activity',
+      'library',
+      'play',
+    ]),
+    'server': dict({
+      'version': '0.2.0',
+    }),
+    'update_interval': '0:00:30',
+  })
+# ---
