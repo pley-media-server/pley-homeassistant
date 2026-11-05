@@ -21,9 +21,11 @@ from custom_components.pley.pleyclient import Account, ServerInfo
 
 from .conftest import (
     ME,
+    METADATA,
     SERVER_ID,
     SERVER_URL,
     FakePley,
+    mock_proof,
     mock_server,
     proving_server,
     requests_to,
@@ -116,6 +118,26 @@ async def test_setup_retried(
     assert mock_config_entry.state is ConfigEntryState.SETUP_RETRY
     assert mock_config_entry.reason == reason
     # Nothing at the address got a token.
+    assert not requests_to(aioclient_mock, "GET", "/api/auth/me")
+
+
+async def test_setup_retried_behind_a_proxy(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test a server naming another address says what to fix, and gets no token."""
+    mock_proof(aioclient_mock)
+    aioclient_mock.get(
+        f"{SERVER_URL}/.well-known/oauth-authorization-server",
+        json=METADATA | {"issuer": "http://127.0.0.1:7539"},
+    )
+    await _setup(hass, mock_config_entry)
+    assert mock_config_entry.state is ConfigEntryState.SETUP_RETRY
+    assert mock_config_entry.reason == (
+        f"The Pley server at {SERVER_URL} answers as a different address. If it "
+        "is behind a reverse proxy, make the proxy pass the original Host header on"
+    )
     assert not requests_to(aioclient_mock, "GET", "/api/auth/me")
 
 

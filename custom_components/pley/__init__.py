@@ -20,6 +20,7 @@ from .coordinator import (
 )
 from .issues import SERVER_TOO_OLD, WRONG_SERVER, async_clear_issues, async_raise_issue
 from .pleyclient import (
+    IssuerMismatch,
     PleyAuthError,
     PleyClient,
     PleyError,
@@ -70,8 +71,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: PleyConfigEntry) -> bool
     client = await async_create_client(hass, url, tokens, save_tokens)
     placeholders = {"url": url}
     try:
-        # The server proves it is the one signed in to before it is sent a
-        # token: the address may lead to another device now.
+        # No token goes out until the server answers the sign-in's
+        # challenge: something else may have taken over the address.
         server = await client.verify()
         # The server may have been put back to an older version since the
         # sign-in, or this version of the integration may need a newer one.
@@ -94,6 +95,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: PleyConfigEntry) -> bool
         raise ConfigEntryNotReady(
             translation_domain=DOMAIN,
             translation_key="too_old",
+            translation_placeholders=placeholders,
+        ) from err
+    except IssuerMismatch as err:
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="issuer_mismatch",
             translation_placeholders=placeholders,
         ) from err
     except PleyError as err:

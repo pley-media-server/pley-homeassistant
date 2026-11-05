@@ -246,6 +246,9 @@
     "wrong_server": {
       "message": "A different Pley server, or another device, answers at {url}, so Home Assistant sends it no token."
     },
+    "issuer_mismatch": {
+      "message": "The Pley server at {url} answers as a different address. If it is behind a reverse proxy, make the proxy pass the original Host header on."
+    },
     "too_old": {
       "message": "The Pley server at {url} is too old for this version of Pley for Home Assistant. Update Pley on the server."
     },
