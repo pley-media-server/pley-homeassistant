@@ -1,25 +1,30 @@
 """Media players for the devices that play from Pley."""
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import datetime
 import hashlib
 import logging
+import re
 from typing import Any
 
-# Home Assistant 2026.10 moved MediaPlayerDeviceClass to media_player.const,
-# which 2026.9 lacks.
+# Home Assistant 2026.10 moved MediaPlayerDeviceClass and MediaPlayerEnqueue
+# to media_player.const, which 2026.9 lacks.
 from homeassistant.components.media_player import (  # type: ignore[attr-defined]
     MediaPlayerDeviceClass,
+    MediaPlayerEnqueue,
     MediaPlayerEntity,
 )
 from homeassistant.components.media_player.const import (
+    ATTR_MEDIA_ANNOUNCE,
+    ATTR_MEDIA_ENQUEUE,
+    ATTR_MEDIA_EXTRA,
     DOMAIN as MEDIA_PLAYER_DOMAIN,
     MediaPlayerEntityFeature,
     MediaPlayerState,
     MediaType,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -27,11 +32,13 @@ from .const import DOMAIN, IMAGE_WIDTH
 from .coordinator import PleyConfigEntry, PleyCoordinator
 from .entity import PleyEntity
 from .pleyclient import (
+    CastKind,
     Channel,
     Control,
     DeviceKind,
     Item,
     ItemKind,
+    NotCastable,
     NotControllable,
     PlayMethod,
     PlayState,
@@ -79,11 +86,48 @@ COMMAND_ERRORS: tuple[tuple[type[PleyError], str], ...] = (
 )
 
 
+CAST_ERRORS: tuple[tuple[type[PleyError], str], ...] = (
+    (NotCastable, "not_castable"),
+    (TooManyRequests, "too_many_commands"),
+    (PleyNotFound, "cast_not_found"),
+    (PleyForbidden, "forbidden"),
+    (PleyAuthError, "auth_failed"),
+)
+
+# What play_media plays: pley://item/<id>, pley://playlist/<id> or
+# pley://channel/<id>, the id being the one in the web app's address for it.
+MEDIA_ID = re.compile(r"pley://(item|playlist|channel)/([1-9][0-9]{0,17})")
+
+# The furthest into a title it may start: a day, as the server allows.
+MAX_START_MS = 24 * 60 * 60 * 1000
+# Higher than any file's stream index.
+MAX_STREAM_INDEX = 2**31 - 1
+
+
+def _whole(value: Any, low: int, high: int) -> bool:
+    """Return whether a value is a whole number from low to high."""
+    return (
+        isinstance(value, int) and not isinstance(value, bool) and low <= value <= high
+    )
+
+
+# What play_media's extra passes on to the cast, and the values each takes.
+# Other keys are left alone, as other integrations leave them.
+CAST_OPTIONS: dict[str, Callable[[Any], bool]] = {
+    "start_ms": lambda value: _whole(value, 0, MAX_START_MS),
+    "shuffle": lambda value: isinstance(value, bool),
+    "audio_index": lambda value: _whole(value, 0, MAX_STREAM_INDEX),
+    "subtitle_index": lambda value: _whole(value, -1, MAX_STREAM_INDEX),
+}
+
+
 def command_error(
-    err: PleyError, errors: tuple[tuple[type[PleyError], str], ...]
+    err: PleyError,
+    errors: tuple[tuple[type[PleyError], str], ...],
+    default: str = "command_failed",
 ) -> HomeAssistantError:
     """Return the error to raise for a request the server refused."""
-    key = next((key for kind, key in errors if isinstance(err, kind)), "command_failed")
+    key = next((key for kind, key in errors if isinstance(err, kind)), default)
     return HomeAssistantError(
         translation_domain=DOMAIN,
         translation_key=key,
@@ -199,14 +243,21 @@ class PleyPlayer(PleyEntity, MediaPlayerEntity):
 
     @property
     def supported_features(self) -> MediaPlayerEntityFeature:
-        """Return what the device takes: Stop, and its player's controls if it's own."""
+        """Return what the device takes.
+
+        Stop while it plays, with its player's controls if it's the
+        profile's own, and play media while it's open to play what it's sent.
+        """
         features = MediaPlayerEntityFeature(0)
-        if (device := self.device) is None or device.session is None:
+        if (device := self.device) is None:
             return features
-        features |= MediaPlayerEntityFeature.STOP
-        if device.own:
-            for control in device.session.controls & FEATURES.keys():
-                features |= FEATURES[control]
+        if device.receiver is not None and device.receiver.casts:
+            features |= MediaPlayerEntityFeature.PLAY_MEDIA
+        if (session := device.session) is not None:
+            features |= MediaPlayerEntityFeature.STOP
+            if device.own:
+                for control in session.controls & FEATURES.keys():
+                    features |= FEATURES[control]
         return features
 
     @property
@@ -427,4 +478,59 @@ class PleyPlayer(PleyEntity, MediaPlayerEntity):
             await self.coordinator.client.stop_session(session.session_id)
         except PleyError as err:
             raise command_error(err, COMMAND_ERRORS) from err
+        await self.coordinator.async_request_refresh()
+
+    async def async_play_media(
+        self, media_type: MediaType | str, media_id: str, **kwargs: Any
+    ) -> None:
+        """Play a title, a playlist or a channel, as the device's own Play would.
+
+        The id says what it is, so the media type isn't needed. Extra may
+        say where a title starts (start_ms), to shuffle (shuffle), and the
+        audio and subtitles of a film or an episode (audio_index and
+        subtitle_index, -1 for none).
+        """
+        if kwargs.get(ATTR_MEDIA_ANNOUNCE):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="announce_unsupported"
+            )
+        if kwargs.get(ATTR_MEDIA_ENQUEUE) not in (None, MediaPlayerEnqueue.PLAY):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="enqueue_unsupported"
+            )
+        if (match := MEDIA_ID.fullmatch(media_id)) is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_media_id",
+                translation_placeholders={"media_id": media_id},
+            )
+        what = match[1]
+        cast: dict[str, Any] = {f"{what}_id": int(match[2])}
+        extra = kwargs.get(ATTR_MEDIA_EXTRA) or {}
+        for key, valid in CAST_OPTIONS.items():
+            if key not in extra:
+                continue
+            if not valid(extra[key]):
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="invalid_extra",
+                    translation_placeholders={"key": key},
+                )
+            cast[key] = extra[key]
+
+        if (device := self.device) is None or (receiver := device.receiver) is None:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="not_receiver"
+            )
+        # Checked before asking, so a channel sent to a device that takes
+        # only titles says so plainly.
+        needs = CastKind.LIVE if what == "channel" else CastKind.ITEM
+        if needs not in receiver.casts:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="not_castable"
+            )
+        try:
+            await self.coordinator.client.cast(receiver.receiver_id, **cast)
+        except PleyError as err:
+            raise command_error(err, CAST_ERRORS, "cast_failed") from err
         await self.coordinator.async_request_refresh()

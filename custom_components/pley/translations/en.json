@@ -243,6 +243,30 @@
     },
     "command_failed": {
       "message": "The Pley server refused the command: {error}"
+    },
+    "invalid_media_id": {
+      "message": "{media_id} isn't something Pley plays. Use pley://item/ID, pley://playlist/ID or pley://channel/ID, with the ID from the web app's address for it."
+    },
+    "invalid_extra": {
+      "message": "The extra option {key} has a value Pley doesn't take."
+    },
+    "enqueue_unsupported": {
+      "message": "Pley plays what it's sent at once, in place of what's playing: it can't add to a queue."
+    },
+    "announce_unsupported": {
+      "message": "Pley doesn't play announcements."
+    },
+    "not_receiver": {
+      "message": "This device isn't ready to play what it's sent. Open Pley on it first."
+    },
+    "not_castable": {
+      "message": "This device's Pley app doesn't play that when it's sent it."
+    },
+    "cast_not_found": {
+      "message": "The device has gone, or this Pley profile can't see that title, playlist or channel."
+    },
+    "cast_failed": {
+      "message": "The Pley server refused to play it: {error}"
     }
   }
 }

@@ -27,3 +27,13 @@ phones, tablets, computers and browsers are added disabled, for you to enable
 the ones you want. On an administrator's account, other people's plays show
 up too, with Stop only. Pley tells Home Assistant as things change, so
 there's no waiting for a poll.
+
+### Play titles, playlists and channels on a TV
+
+The `media_player.play_media` action sends a device whose Pley app is open a
+title, a playlist or a Live TV channel to play, as its own Play would:
+`pley://item/<id>`, `pley://playlist/<id>` or `pley://channel/<id>`, with the
+ID from the web app's address for it. Its `extra` can say where a title
+starts (`start_ms`), shuffle a playlist, an album or an artist (`shuffle`),
+and choose a film's or an episode's audio and subtitles (`audio_index` and
+`subtitle_index`). The TV says it's playing from Home Assistant.
