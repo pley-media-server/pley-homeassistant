@@ -89,3 +89,13 @@ newer than that version has.
 - No `Co-Authored-By` trailer, no "Generated with" line.
 - Never commit `.venv`, caches, `.coverage`, `.hypothesis`, or anything
   `.gitignore` excludes.
+
+## Releases
+
+Versions are semantic, from 0.1.0, and tagged `v<version>`. A commit
+"Release <version>" sets the version in `manifest.json` and heads the
+changelog's unreleased notes `## <version> (<date>)`. Publishing the
+GitHub release for its tag, with those notes, runs `release.yml`, which
+checks the manifest's version matches the tag and attaches
+`custom_components/pley` as `pley.zip`, the file HACS installs. A person
+publishes releases: never tag or publish one yourself.
