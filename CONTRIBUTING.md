@@ -10,6 +10,22 @@ python script/translations.py  # after changing strings.json
 CI requires 100% test coverage, and also runs the tests against the oldest
 Home Assistant version in `hacs.json`.
 
+`tests/test_e2e.py` checks the integration against a real Pley server, and
+is skipped unless you name one. `PLEY_BIN` is a server program, which the
+tests start on a new data folder and a free port; build one from the
+[Pley repository](https://github.com/pley-media-server/pley) with
+`cargo build -p pley-server`:
+
+```sh
+PLEY_BIN=../pley/target/debug/pley pytest tests/test_e2e.py
+```
+
+Or `PLEY_URL` is the address of a server that's running and not set up
+yet, with `PLEY_SETUP_CODE`, the setup code from its log, and
+`PLEY_MEDIA_DIR`, a folder the tests put a film in, which the server reads
+at the same path. CI checks against a server built from Pley's master on
+every push and every night.
+
 `translations/en.json` is generated from `strings.json`, so change the
 latter.
 

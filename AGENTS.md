@@ -40,7 +40,9 @@ apart.
     give each exempt rule a comment saying why.
   - `brand/`: the icon, at 256 and 512 pixels.
 - `tests/`: pytest, with `pytest-homeassistant-custom-component`; the
-  server's answers are mocked with `AiohttpClientMocker`.
+  server's answers are mocked with `AiohttpClientMocker`. `test_e2e.py`
+  checks against a real Pley server instead, and is skipped unless
+  `PLEY_BIN` or `PLEY_URL` names one (`CONTRIBUTING.md` says how).
 - `script/translations.py`, `.github/workflows/`, `hacs.json`.
 
 ## Check your work

@@ -1,0 +1,53 @@
+name: End to end
+
+# Checks the integration against a real Pley server. No published Pley
+# release signs Home Assistant in yet, so the server is built from Pley's
+# master; the nightly run also catches a change there that breaks the
+# integration.
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+# Read-only: the workflows only check out and test the code.
+permissions:
+  contents: read
+
+jobs:
+  pley-master:
+    name: e2e (Pley master)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: pley-media-server/pley
+          ref: master
+          path: pley
+          persist-credentials: false
+      - name: Show the Pley commit checked against
+        run: git -C pley log -1 --oneline
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: pley -> target
+          # Pull requests reuse the cache without writing their own.
+          save-if: ${{ github.event_name != 'pull_request' }}
+      # The tests use the server's API alone: the web app it embeds and
+      # the transcoder aren't needed, and a release build allows the web
+      # app missing.
+      - name: Build the Pley server
+        working-directory: pley
+        run: cargo build --release --locked -p pley-server
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - run: pip install -r requirements_test.txt
+      - name: Check against the server
+        env:
+          PLEY_BIN: ${{ github.workspace }}/pley/target/release/pley
+        run: pytest tests/test_e2e.py
