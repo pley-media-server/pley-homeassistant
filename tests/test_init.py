@@ -1,5 +1,7 @@
 """Tests for setting up the Pley integration."""
 
+import json
+from pathlib import Path
 import time
 from typing import Any
 
@@ -32,6 +34,12 @@ from .conftest import (
     token_answer,
 )
 
+# The integration's version, as its manifest says, so a release changes
+# only the manifest.
+VERSION = json.loads(
+    (Path(__file__).parents[1] / "custom_components/pley/manifest.json").read_text()
+)["version"]
+
 
 async def _setup(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     entry.add_to_hass(hass)
@@ -62,8 +70,8 @@ async def test_setup_and_unload(
     assert "Authorization" not in metadata[3]
     assert me[3]["Authorization"] == "Bearer pley_at_first"
     # The server names the sign-in from the User-Agent.
-    assert (
-        me[3]["User-Agent"] == f"pleyHomeAssistant/0.1.0 (Home Assistant {HA_VERSION})"
+    assert me[3]["User-Agent"] == (
+        f"pleyHomeAssistant/{VERSION} (Home Assistant {HA_VERSION})"
     )
     # Then the devices, and the events, as a remote rather than a device to
     # play on.
