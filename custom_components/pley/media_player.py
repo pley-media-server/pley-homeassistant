@@ -214,6 +214,19 @@ class PleyPlayer(PleyEntity, MediaPlayerEntity):
         self._async_follow_device()
         super()._handle_coordinator_update()
 
+    @callback
+    def _async_follow_device(self) -> None:
+        """Keep the icon of the kind of device Pley last described."""
+        super()._async_follow_device()
+        if self._attr_translation_key == self.kind.value:
+            return
+        self._attr_translation_key = self.kind.value
+        # The frontend picks the icon by the registry's key, which is also
+        # where the kind is remembered from at the next start.
+        er.async_get(self.hass).async_update_entity(
+            self.entity_id, translation_key=self.kind.value
+        )
+
     @property
     def _session(self) -> Session | None:
         return device.session if (device := self.device) is not None else None

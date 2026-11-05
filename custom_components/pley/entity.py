@@ -45,7 +45,9 @@ class PleyEntity(CoordinatorEntity[PleyCoordinator]):
         super().__init__(coordinator)
         server_id = coordinator.server.id
         self.device_id = device_id
-        self.kind = known_kind(kind)
+        # What Pley says now wins over the kind remembered from before.
+        device = self.device
+        self.kind = known_kind(device.kind if device is not None else kind)
         # Device IDs are only unique on their server.
         self._device_key = f"{server_id}:{device_id}"
         self._attr_unique_id = (
@@ -55,7 +57,7 @@ class PleyEntity(CoordinatorEntity[PleyCoordinator]):
             identifiers={(DOMAIN, self._device_key)},
             via_device_id=coordinator.config_entry.runtime_data.server_device_id,
         )
-        if (device := self.device) is not None:
+        if device is not None:
             self._attr_device_info["name"] = self._device_name(device)
             self._attr_device_info["model"] = MODELS[self.kind]
         # Only the kinds chosen in the options start enabled; a person

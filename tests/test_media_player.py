@@ -634,3 +634,57 @@ async def test_devices(
     tv = device_registry.async_get(tv.id)
     assert (tv.name, tv.name_by_user) == ("Lounge TV", "Telly")
     assert hass.states.get(TV).name == "Telly"
+
+
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_kind_changes(
+    hass: HomeAssistant,
+    fake_pley: FakePley,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """Test a device that says what kind it is later takes that kind's icon.
+
+    An app may list itself as other until it knows, and the kind it says
+    is kept from then on, across restarts.
+    """
+    fake_pley.receivers = [{**TV_RECEIVER, "kind": "other"}]
+    await setup_integration(hass, mock_config_entry)
+    assert entity_registry.async_get(TV).translation_key == "other"
+    assert hass.states.get(TV).attributes["device_kind"] == "other"
+
+    fake_pley.receivers = [TV_RECEIVER]
+    await _refresh(hass, mock_config_entry)
+    assert entity_registry.async_get(TV).translation_key == "tv"
+    assert _player(hass, TV).translation_key == "tv"
+    state = hass.states.get(TV)
+    assert (state.attributes["device_kind"], state.attributes["device_class"]) == (
+        "tv",
+        "tv",
+    )
+
+    # Away at the next start, it comes back as a TV.
+    fake_pley.receivers = []
+    assert await hass.config_entries.async_reload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert entity_registry.async_get(TV).translation_key == "tv"
+    assert hass.states.get(TV).attributes["device_kind"] == "tv"
+
+
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_kind_changed_while_stopped(
+    hass: HomeAssistant,
+    fake_pley: FakePley,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """Test a kind that changed while Home Assistant was stopped is taken at start."""
+    fake_pley.receivers = [{**TV_RECEIVER, "kind": "other"}]
+    await setup_integration(hass, mock_config_entry)
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+
+    fake_pley.receivers = [TV_RECEIVER]
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert entity_registry.async_get(TV).translation_key == "tv"
+    assert hass.states.get(TV).attributes["device_kind"] == "tv"
