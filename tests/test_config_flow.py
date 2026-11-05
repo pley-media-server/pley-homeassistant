@@ -44,6 +44,13 @@ from .conftest import (
     token_answer,
 )
 
+# The examples under the address field, filled in by the flow.
+ADDRESS_EXAMPLES = {
+    "ip_example": "192.168.1.20",
+    "host_example": "pley.local",
+    "https_example": "https://pley.example.com",
+}
+
 # A Pley server as Bonjour announces it.
 DISCOVERY = ZeroconfServiceInfo(
     ip_address=ip_address("192.168.1.20"),
@@ -100,6 +107,7 @@ async def test_user_flow(
     )
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "user"
+    assert result["description_placeholders"] == ADDRESS_EXAMPLES
 
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {CONF_URL: " 192.168.1.20 "}
@@ -645,7 +653,10 @@ async def test_reconfigure(
     result = await mock_config_entry.start_reconfigure_flow(hass)
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "reconfigure"
-    assert result["description_placeholders"] == {"name": "Living room"}
+    assert result["description_placeholders"] == {
+        **ADDRESS_EXAMPLES,
+        "name": "Living room",
+    }
     schema = result["data_schema"].schema
     assert next(iter(schema)).description == {"suggested_value": OLD_URL}
 

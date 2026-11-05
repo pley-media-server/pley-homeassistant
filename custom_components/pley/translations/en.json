@@ -9,7 +9,7 @@
           "url": "Address"
         },
         "data_description": {
-          "url": "For example 192.168.1.20, pley.local or https://pley.example.com. Without a port, http goes to Pley's own, 7539. Plain http is only for the local network."
+          "url": "For example {ip_example}, {host_example} or {https_example}. Without a port, http goes to Pley's own, 7539. Plain http is only for the local network."
         }
       },
       "zeroconf_confirm": {
@@ -27,7 +27,7 @@
           "url": "Address"
         },
         "data_description": {
-          "url": "For example 192.168.1.20, pley.local or https://pley.example.com. Without a port, http goes to Pley's own, 7539. Plain http is only for the local network."
+          "url": "For example {ip_example}, {host_example} or {https_example}. Without a port, http goes to Pley's own, 7539. Plain http is only for the local network."
         }
       },
       "link": {

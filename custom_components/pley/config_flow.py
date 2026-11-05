@@ -59,6 +59,14 @@ from .pleyclient import (
 _LOGGER = logging.getLogger(__name__)
 
 USER_SCHEMA = vol.Schema({vol.Required(CONF_URL): TextSelector()})
+
+# Examples under the address field. Home Assistant keeps addresses out of
+# translated strings, so they are filled in here.
+ADDRESS_EXAMPLES = {
+    "ip_example": "192.168.1.20",
+    "host_example": "pley.local",
+    "https_example": "https://pley.example.com",
+}
 OPTIONS_SCHEMA = vol.Schema(
     {
         vol.Optional(OPT_SHOWN_KINDS, default=[]): SelectSelector(
@@ -160,6 +168,7 @@ class PleyConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="user",
             data_schema=self.add_suggested_values_to_schema(USER_SCHEMA, user_input),
+            description_placeholders=ADDRESS_EXAMPLES,
             errors=errors,
         )
 
@@ -195,7 +204,7 @@ class PleyConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=self.add_suggested_values_to_schema(
                 USER_SCHEMA, user_input or {CONF_URL: entry.data[CONF_URL]}
             ),
-            description_placeholders={"name": entry.title},
+            description_placeholders={**ADDRESS_EXAMPLES, "name": entry.title},
             errors=errors,
         )
 
