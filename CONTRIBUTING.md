@@ -1,10 +1,17 @@
 # Contributing
 
+The client for Pley's API lives in `custom_components/pley/pleyclient/`,
+which doesn't depend on Home Assistant, so in the future it can become a
+standalone library (as Home Assistant core requires). A test keeps it that
+way.
+
 ```sh
 pip install -r requirements_test.txt pre-commit
 pre-commit install  # runs ruff and mypy before each commit
 pytest --cov=custom_components.pley
 python script/translations.py  # after changing strings.json
+pytest --snapshot-update  # after changing entities or diagnostics; review the diff
+HYPOTHESIS_PROFILE=thorough pytest tests/test_fuzz.py  # after changing parsing
 ```
 
 CI requires 100% test coverage, and also runs the tests against the oldest
@@ -23,8 +30,8 @@ PLEY_BIN=../pley/target/debug/pley pytest tests/test_e2e.py
 Or `PLEY_URL` is the address of a server that's running and not set up
 yet, with `PLEY_SETUP_CODE`, the setup code from its log, and
 `PLEY_MEDIA_DIR`, a folder the tests put a film in, which the server reads
-at the same path. CI checks against a server built from Pley's master on
-every push and every night.
+at the same path. CI checks against a server built from Pley's master
+every night, and on demand.
 
 `translations/en.json` is generated from `strings.json`, so change the
 latter.

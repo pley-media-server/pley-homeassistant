@@ -1,4 +1,4 @@
-# Instructions for coding agents
+# Working on Pley for Home Assistant
 
 Pley for Home Assistant is a custom integration, installed through HACS,
 that shows the devices playing from a [Pley](https://github.com/pley-media-server/pley)
@@ -61,34 +61,36 @@ Every one of these passes before a commit:
 ```
 
 Coverage is 100%. Reach it with tests, not by excluding code: no
-`pragma: no cover` and no weakened checks. Don't skip or loosen a test to
-make it pass; if a test is wrong, say why in the commit. CI also runs the
-tests against the oldest Home Assistant in `hacs.json`, so use nothing
-newer than that version has.
+`pragma: no cover` and no weakened checks. A failing test gets fixed, not
+skipped or relaxed; when the test itself was wrong, the commit message
+explains how. CI also runs the tests against the oldest Home Assistant in
+`hacs.json`, so use nothing newer than that version has.
 
 ## Writing
 
-- Code reads like the code around it. Comments explain why, in plain
-  sentences. Typing is strict (mypy `strict`), docstrings follow Google's
+- New code matches its neighbours in naming, structure and how much it
+  comments, and a comment gives the reason for the code rather than
+  retelling it. Typing is strict (mypy `strict`), docstrings follow Google's
   style, and ruff uses Home Assistant core's rules.
-- Docs and strings are plain and in the present tense, written for the
-  person using Home Assistant. The product is written Pley; ids, the
+- Docs and strings use simple words and describe what is, for the person
+  using Home Assistant. The product is written Pley; ids, the
   domain and packages stay lowercase `pley`.
 - No license headers in source files.
-- Notes for the maintainer (open questions, to-dos, test logs) go in a
-  `*.local.md` file, which git ignores, never in a tracked file.
-- A change people notice gets a line under `## Unreleased` in
-  `CHANGELOG.md`, as a user sees it.
+- Open questions, to-dos and test logs meant for the maintainer belong in
+  a git-ignored `*.local.md` file, not in anything tracked.
+- A change people notice is noted under `## Unreleased` in
+  `CHANGELOG.md`, described from their side.
 
 ## Commits
 
-- One logical change per commit, with its tests, docs and changelog.
-- The subject is a plain sentence saying what changed as a user sees it,
-  with no area prefix: "Show each Pley device as a media player". The body,
-  if any, is short: why, and what a reviewer should know.
-- No `Co-Authored-By` trailer, no "Generated with" line.
-- Never commit `.venv`, caches, `.coverage`, `.hypothesis`, or anything
-  `.gitignore` excludes.
+- Each commit holds a single change, together with the tests, docs and
+  changelog line it needs.
+- The subject is a short sentence describing the change from the user's
+  side, without an area prefix: "Show each Pley device as a media player".
+  Add a brief body only when a reviewer needs the reason.
+- Leave out `Co-Authored-By` trailers and "Generated with" lines.
+- Keep `.venv`, caches, `.coverage`, `.hypothesis` and whatever
+  `.gitignore` excludes out of commits.
 
 ## Releases
 

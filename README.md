@@ -87,7 +87,8 @@ The sign-in shows in Pley under **Account → Apps** as Pley for Home
 Assistant, where you can sign it out. It may see your libraries (for
 artwork), see what plays and stop it, and play on and control your
 profile's devices. Before Home Assistant sends the server anything signed
-in, the server proves it's the one you signed in to.
+in, the server answers a challenge with a key only it and Home Assistant
+share, so nothing else at its address gets your sign-in.
 
 YAML configuration isn't supported.
 

@@ -1,5 +1,5 @@
 # Pley for Home Assistant
 
-The instructions for coding agents, Claude Code included, are in AGENTS.md:
+Claude Code works from AGENTS.md, as every coding agent here does:
 
 @AGENTS.md

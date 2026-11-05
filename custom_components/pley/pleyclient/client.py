@@ -269,9 +269,9 @@ class _Refused(PleyAuthError):
 class PleyClient:
     """Client for a Pley server, signed in as Pley's own app.
 
-    Before a token goes to the address, the server there proves it is the
-    one signed in to, as Pley's apps do: an address can come to lead to
-    another device. A refreshed sign-in is handed to `on_tokens`, to be
+    A token is only sent once whatever answers at the address has answered
+    a fresh challenge with an HMAC under this sign-in's proof key, since an
+    address can be handed to some other device later. A refreshed sign-in is handed to `on_tokens`, to be
     saved, before it is used: each refresh token works once.
     """
 
@@ -485,7 +485,7 @@ class PleyClient:
         return self._tokens
 
     async def verify(self) -> ServerInfo:
-        """Make sure the server at the address is the one signed in to, and return it.
+        """Check the server at the address holds this sign-in, and return it.
 
         It answers a random challenge with an HMAC under the sign-in's proof
         key. Raises WrongServer if it can't, and PleyConnectionError if it

@@ -100,8 +100,9 @@ rules:
   reconfiguration-flow:
     status: done
     comment: |
-      The server's address can be changed, for the same server only: it must
-      prove it is the one signed in to before the entry uses the address.
+      The server's address can be changed, for the same server only: the
+      entry takes the address once the server there answers the sign-in's
+      challenge.
   repair-issues:
     status: done
     comment: |
