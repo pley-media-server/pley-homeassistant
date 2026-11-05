@@ -234,6 +234,27 @@ async def test_live(
     assert "media_track" not in state.attributes
 
 
+@pytest.mark.parametrize("kind", ["live", "unknown"])
+async def test_live_without_seek(
+    hass: HomeAssistant,
+    fake_pley: FakePley,
+    mock_config_entry: MockConfigEntry,
+    kind: str,
+) -> None:
+    """Test a channel that can go back pauses, but can't seek to the guide's place.
+
+    A kind from a newer server playing a channel is taken as live too.
+    """
+    controls = ["play", "pause", "seek", "skip", "next", "previous"]
+    fake_pley.sessions = [{**LIVE_SESSION, "kind": kind, "controls": controls}]
+    await setup_integration(hass, mock_config_entry)
+
+    state = hass.states.get(TV)
+    assert state.attributes[ATTR_SUPPORTED_FEATURES] == ALL_FEATURES & ~Feature.SEEK
+    assert "seek" in state.attributes["controls"]
+    assert state.attributes["media_position"] == 600
+
+
 async def test_live_without_guide(
     hass: HomeAssistant, fake_pley: FakePley, mock_config_entry: MockConfigEntry
 ) -> None:

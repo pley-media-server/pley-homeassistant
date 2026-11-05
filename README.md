@@ -252,6 +252,8 @@ actions:
 - A browser is one device however many of its tabs play, and can't be sent
   something to play.
 - Other people's Live TV isn't shown, only the titles they play.
+- There's no seeking in a Live TV channel, even on a player that can pause
+  it: the place shown comes from the guide, not the player.
 - Pley can't turn a TV on, or open its app: a TV takes play_media only
   while its Pley app is open.
 

@@ -48,6 +48,7 @@ from .pleyclient import (
     PleyForbidden,
     PleyNotFound,
     Session,
+    SessionKind,
     TooManyRequests,
 )
 
@@ -263,6 +264,11 @@ class PleyPlayer(PleyEntity, MediaPlayerEntity):
             if device.own:
                 for control in session.controls & FEATURES.keys():
                     features |= FEATURES[control]
+            # A live player seeks in its own window back into the channel,
+            # which Pley doesn't share: a place on the guide's programme
+            # would send it somewhere else.
+            if session.kind is SessionKind.LIVE or self._channel is not None:
+                features &= ~MediaPlayerEntityFeature.SEEK
         return features
 
     @property
@@ -367,7 +373,8 @@ class PleyPlayer(PleyEntity, MediaPlayerEntity):
         if (device := self.device) is None or (session := device.session) is None:
             return None
         if (channel := self._channel) is not None:
-            # The place in the programme on, by the guide.
+            # The place in the programme on, by the guide, to show only:
+            # the player can't seek to it.
             if channel.now_start is None or (duration := self.media_duration) is None:
                 return None
             elapsed = self.coordinator.data.fetched_at - channel.now_start
