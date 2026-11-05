@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 (2026-11-05)
 
 The first release of Pley for Home Assistant. It needs Home Assistant 2026.9
 or later, and installs from HACS as a custom repository: the
