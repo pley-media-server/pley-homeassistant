@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-The first release of Pley for Home Assistant.
+The first release of Pley for Home Assistant. It needs Home Assistant 2026.9
+or later, and installs from HACS as a custom repository: the
+[README](README.md) says how, and has examples of automations.
 
 ### Add a Pley server, and sign in with a code
 
