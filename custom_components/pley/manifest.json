@@ -1,0 +1,20 @@
+{
+  "domain": "pley",
+  "name": "Pley",
+  "codeowners": [
+    "@sibartlett"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/pley-media-server/pley-homeassistant",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/pley-media-server/pley-homeassistant/issues",
+  "loggers": [
+    "custom_components.pley"
+  ],
+  "requirements": [],
+  "version": "0.1.0",
+  "zeroconf": [
+    "_pley._tcp.local."
+  ]
+}

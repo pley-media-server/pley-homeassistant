@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+.coverage
+.mypy_cache/
+.hypothesis/
+.DS_Store
+# Notes for the maintainer, kept out of the repository.
+*.local.md

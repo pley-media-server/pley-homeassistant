@@ -1,0 +1,19 @@
+name: Feature request
+description: Something the integration could do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you'd like
+      description: What you want to do with Pley in Home Assistant, and why.
+    validations:
+      required: true
+  - type: textarea
+    id: pley
+    attributes:
+      label: What Pley offers
+      description: >-
+        If it's something a Pley app does, how it looks there. Some things
+        need a newer Pley server, or aren't open to apps such as Home
+        Assistant.

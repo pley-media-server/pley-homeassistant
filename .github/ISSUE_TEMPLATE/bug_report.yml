@@ -1,0 +1,58 @@
+name: Bug report
+description: Something doesn't work as the documentation describes.
+labels: [bug]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: integration-version
+    attributes:
+      label: Integration version
+      description: In HACS, or Settings → Devices & services → Pley.
+    validations:
+      required: true
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant version
+      description: Settings → About.
+    validations:
+      required: true
+  - type: input
+    id: pley-version
+    attributes:
+      label: Pley server version
+      description: >-
+        At the bottom of the Account page in Pley's web app, or on the Pley
+        server's device page in Home Assistant.
+    validations:
+      required: true
+  - type: input
+    id: apps
+    attributes:
+      label: Pley apps
+      description: >-
+        The Pley apps on the devices involved, e.g. Pley on an LG TV, Android
+        TV or Kodi, and whether they belong to your profile or someone
+        else's.
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: >-
+        Settings → Devices & services → Pley → ⋮ → Download diagnostics, then
+        drag the file here. Sign-in tokens, names and the server's address
+        are removed from it.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Debug logs
+      description: >-
+        ⋮ → Enable debug logging, reproduce the problem, then disable it to
+        download the log. Paste the lines about Pley.
+      render: text
