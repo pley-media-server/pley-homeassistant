@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-11-05)
 
 ### Pick what to play from your Pley library
 
