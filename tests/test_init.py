@@ -51,10 +51,13 @@ async def test_setup_and_unload(
     data = mock_config_entry.runtime_data
     assert data.server == ServerInfo(SERVER_ID, "Living room", "0.2.0")
     assert data.account == Account(1, "ada", "Ada", frozenset(ME["scope"].split()))
-    # The proof comes before the token goes anywhere.
-    proof, me, *fetches = aioclient_mock.mock_calls
+    # The proof comes before the token goes anywhere, and the server is
+    # checked to be new enough.
+    proof, metadata, me, *fetches = aioclient_mock.mock_calls
     assert proof[1].query["proof_id"]
     assert "Authorization" not in proof[3]
+    assert metadata[1].path == "/.well-known/oauth-authorization-server"
+    assert "Authorization" not in metadata[3]
     assert me[3]["Authorization"] == "Bearer pley_at_first"
     # The server names the sign-in from the User-Agent.
     assert (

@@ -151,24 +151,64 @@ class PleyConfigFlow(ConfigFlow, domain=DOMAIN):
         """Ask for the server's address."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            try:
-                self._url = normalize_address(user_input[CONF_URL])
-            except UnencryptedAddress:
-                errors[CONF_URL] = "unencrypted"
-            except InvalidAddress:
-                errors[CONF_URL] = "invalid_url"
-            else:
-                server = await self._async_check_server()
-                if isinstance(server, ServerInfo):
-                    await self.async_set_unique_id(server.id)
-                    self._abort_if_unique_id_configured()
-                    return await self.async_step_link()
-                errors["base"] = server
+            server = await self._async_server_at(user_input[CONF_URL])
+            if isinstance(server, ServerInfo):
+                await self.async_set_unique_id(server.id)
+                self._abort_if_unique_id_configured()
+                return await self.async_step_link()
+            errors = server
         return self.async_show_form(
             step_id="user",
             data_schema=self.add_suggested_values_to_schema(USER_SCHEMA, user_input),
             errors=errors,
         )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Change the server's address, keeping its sign-in.
+
+        Only for the same server: another one is another entry.
+        """
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            server = await self._async_server_at(user_input[CONF_URL])
+            if isinstance(server, ServerInfo):
+                await self.async_set_unique_id(server.id, raise_on_progress=False)
+                self._abort_if_unique_id_mismatch(reason="wrong_server")
+                # The id is only what it says: the sign-in's proof shows it
+                # is the server before the entry trusts the address.
+                tokens = Tokens.from_dict(entry.data.get(CONF_TOKENS))
+                error = None
+                if tokens is not None:
+                    error = await self._async_proof_error(self._url, tokens)
+                if error is None:
+                    return self.async_update_reload_and_abort(
+                        entry, data_updates={CONF_URL: self._url}
+                    )
+                errors["base"] = error
+            else:
+                errors = server
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                USER_SCHEMA, user_input or {CONF_URL: entry.data[CONF_URL]}
+            ),
+            description_placeholders={"name": entry.title},
+            errors=errors,
+        )
+
+    async def _async_server_at(self, address: str) -> ServerInfo | dict[str, str]:
+        """Return the Pley server at an address someone entered, or the errors."""
+        try:
+            self._url = normalize_address(address)
+        except UnencryptedAddress:
+            return {CONF_URL: "unencrypted"}
+        except InvalidAddress:
+            return {CONF_URL: "invalid_url"}
+        server = await self._async_check_server()
+        return server if isinstance(server, ServerInfo) else {"base": server}
 
     async def async_step_zeroconf(
         self, discovery_info: ZeroconfServiceInfo
@@ -201,13 +241,16 @@ class PleyConfigFlow(ConfigFlow, domain=DOMAIN):
         tokens = Tokens.from_dict(entry.data.get(CONF_TOKENS))
         if current in (None, url) or tokens is None or not _follows_discovery(current):
             return False
+        return await self._async_proof_error(url, tokens) is None
+
+    async def _async_proof_error(self, url: str, tokens: Tokens) -> str | None:
+        """Return the error if the server at an address isn't the sign-in's."""
         client = await async_create_client(self.hass, url, tokens)
         try:
             await client.verify()
         except PleyError as err:
-            _LOGGER.debug("Pley's server didn't move to %s: %s", url, err)
-            return False
-        return True
+            return _error(err)
+        return None
 
     async def async_step_zeroconf_confirm(
         self, user_input: dict[str, Any] | None = None

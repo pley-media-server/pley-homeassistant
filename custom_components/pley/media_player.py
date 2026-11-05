@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Iterable
 from datetime import datetime
+from functools import partial
 import hashlib
 import logging
 import re
@@ -151,7 +152,11 @@ async def async_setup_entry(
             for device_id, kind in devices
             if device_id not in added
         ]
-        added.update(player.device_id for player in players)
+        for player in players:
+            added.add(player.device_id)
+            # A device removed from Home Assistant is added again if it
+            # comes back.
+            player.async_on_remove(partial(added.discard, player.device_id))
         if players:
             async_add_entities(players)
 

@@ -588,6 +588,147 @@ async def test_reauth_another_profile(
     assert revoke[2]["token"] == "pley_rt_new"
 
 
+# Where the entry's server was before it moved to SERVER_URL.
+OLD_URL = "http://192.168.1.30:7539"
+
+
+def _moved(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    """Add the entry, with its server at the address it had before."""
+    entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        entry, data={**entry.data, CONF_URL: OLD_URL}
+    )
+
+
+@pytest.mark.usefixtures("mock_setup_entry")
+async def test_reconfigure(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    mock_config_entry: MockConfigEntry,
+) -> None:
+    """Test the server's address changes once the server there proves itself."""
+    _moved(hass, mock_config_entry)
+    mock_server(aioclient_mock)
+    result = await mock_config_entry.start_reconfigure_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+    assert result["description_placeholders"] == {"name": "Living room"}
+    schema = result["data_schema"].schema
+    assert next(iter(schema)).description == {"suggested_value": OLD_URL}
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_URL: "192.168.1.20"}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert mock_config_entry.data[CONF_URL] == SERVER_URL
+    assert mock_config_entry.data[CONF_TOKENS]["refresh_token"] == "pley_rt_first"
+    # Proved without a token.
+    proofs = [
+        call
+        for call in requests_to(aioclient_mock, "GET", "/api/server")
+        if "proof_id" in call[1].query
+    ]
+    assert len(proofs) == 1
+    assert all("Authorization" not in call[3] for call in aioclient_mock.mock_calls)
+
+
+async def test_reconfigure_another_server(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    mock_config_entry: MockConfigEntry,
+) -> None:
+    """Test another server's address is refused: it would be another entry."""
+    _moved(hass, mock_config_entry)
+    aioclient_mock.get(
+        f"{SERVER_URL}/api/server", json={"id": "another-server", "name": "Den"}
+    )
+    mock_server(aioclient_mock)
+    result = await mock_config_entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_URL: "192.168.1.20"}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "wrong_server"
+    assert mock_config_entry.data[CONF_URL] == OLD_URL
+
+
+@pytest.mark.parametrize(
+    ("address", "response", "errors"),
+    [
+        ("ftp://192.168.1.20", None, {CONF_URL: "invalid_url"}),
+        ("http://pley.example.com", None, {CONF_URL: "unencrypted"}),
+        ("192.168.1.20", {"status": 503}, {"base": "cannot_connect"}),
+        # The server's id, without the proof only the server can make.
+        (
+            "192.168.1.20",
+            {"json": {"id": SERVER_ID, "name": "Living room", "proof": "made-up"}},
+            {"base": "wrong_server"},
+        ),
+    ],
+    ids=["invalid", "unencrypted", "out of reach", "no proof"],
+)
+@pytest.mark.usefixtures("mock_setup_entry")
+async def test_reconfigure_refused(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    mock_config_entry: MockConfigEntry,
+    address: str,
+    response: dict[str, Any] | None,
+    errors: dict[str, str],
+) -> None:
+    """Test an address that isn't the server's is refused, then the right one."""
+    _moved(hass, mock_config_entry)
+    if response is not None:
+        aioclient_mock.get(f"{SERVER_URL}/api/server", **response)
+    mock_server(aioclient_mock)
+    result = await mock_config_entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_URL: address}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == errors
+    assert mock_config_entry.data[CONF_URL] == OLD_URL
+
+    aioclient_mock.clear_requests()
+    mock_server(aioclient_mock)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_URL: "192.168.1.20"}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert mock_config_entry.data[CONF_URL] == SERVER_URL
+
+
+@pytest.mark.usefixtures("mock_setup_entry")
+async def test_reconfigure_without_sign_in(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    mock_config_entry: MockConfigEntry,
+) -> None:
+    """Test an entry that needs signing in again takes the server's id as it is.
+
+    Without a sign-in there's nothing to prove, and nothing to send.
+    """
+    _moved(hass, mock_config_entry)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, data={**mock_config_entry.data, CONF_TOKENS: None}
+    )
+    mock_server(aioclient_mock)
+    result = await mock_config_entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_URL: "192.168.1.20"}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert mock_config_entry.data[CONF_URL] == SERVER_URL
+    assert not [
+        call
+        for call in requests_to(aioclient_mock, "GET", "/api/server")
+        if "proof_id" in call[1].query
+    ]
+
+
 async def test_options(
     hass: HomeAssistant,
     aioclient_mock: AiohttpClientMocker,

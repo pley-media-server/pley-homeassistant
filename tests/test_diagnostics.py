@@ -11,6 +11,7 @@ from .conftest import (
     LIVE_SESSION,
     OTHERS_SESSION,
     PHONE_SESSION,
+    PROOF_KEY,
     TV_RECEIVER,
     FakePley,
     setup_integration,
@@ -37,5 +38,17 @@ async def test_diagnostics(
     diagnostics = await async_get_config_entry_diagnostics(hass, mock_config_entry)
     assert diagnostics == snapshot
     text = repr(diagnostics)
-    for secret in ("pley_at_first", "pley_rt_first", "192.168.1.20", "ada", "grace"):
+    # The sign-in, with the key the server proves itself with; where the
+    # server is; who plays; and what the devices are called.
+    for secret in (
+        "pley_at_first",
+        "pley_rt_first",
+        PROOF_KEY,
+        "192.168.1.20",
+        "ada",
+        "grace",
+        "Living room",
+        "Ada's phone",
+        "Firefox",
+    ):
         assert secret not in text

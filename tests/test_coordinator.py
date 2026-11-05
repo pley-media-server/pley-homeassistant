@@ -8,6 +8,8 @@ from freezegun.api import FrozenDateTimeFactory
 from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntryState
 from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.setup import async_setup_component
 import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -17,16 +19,25 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
     AiohttpClientMocker,
     AiohttpClientMockResponse,
 )
+from pytest_homeassistant_custom_component.typing import WebSocketGenerator
 from yarl import URL
 
-from custom_components.pley.const import IDLE_INTERVAL, PLAYING_INTERVAL
+from custom_components.pley.const import (
+    DOMAIN,
+    IDLE_INTERVAL,
+    LAST_SEEN_SAVE_DELAY,
+    PLAYING_INTERVAL,
+    STALE_AFTER,
+)
 from custom_components.pley.coordinator import merge_devices
 from custom_components.pley.pleyclient import DeviceKind, Receiver, Session
 
 from .conftest import (
+    NOW,
     NOW_TS,
     OTHERS_SESSION,
     PHONE_SESSION,
+    SERVER_ID,
     SERVER_URL,
     TV_RECEIVER,
     TV_SESSION,
@@ -36,6 +47,7 @@ from .conftest import (
     proving_server,
     requests_to,
     setup_integration,
+    token_answer,
     wait_until,
 )
 
@@ -376,4 +388,164 @@ async def test_setup_retried_while_fetching_fails(
     assert mock_config_entry.state is ConfigEntryState.SETUP_RETRY
     assert mock_config_entry.reason.startswith(
         "Can't fetch what plays from the Pley server"
+    )
+
+
+def _device(
+    device_registry: dr.DeviceRegistry, entry: MockConfigEntry, identifier: str
+) -> dr.DeviceEntry | None:
+    """Return the entry's device with an identifier, the server's or a device's.
+
+    Looked up among the entry's: identifiers are only unique within an entry.
+    """
+    return next(
+        (
+            device
+            for device in dr.async_entries_for_config_entry(
+                device_registry, entry.entry_id
+            )
+            if (DOMAIN, identifier) in device.identifiers
+        ),
+        None,
+    )
+
+
+async def test_stale_device_removed(
+    hass: HomeAssistant,
+    fake_pley: FakePley,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    frozen_time: FrozenDateTimeFactory,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """Test a device Pley hasn't listed for a month is removed, until it's back."""
+    # The sign-in is renewed as the days go by.
+    aioclient_mock.post(f"{SERVER_URL}/api/oauth/token", json=token_answer())
+    fake_pley.receivers = [TV_RECEIVER]
+    await setup_integration(hass, mock_config_entry)
+    assert (
+        _device(device_registry, mock_config_entry, f"{SERVER_ID}:app-12") is not None
+    )
+
+    # Away for a while, it's off.
+    fake_pley.receivers = []
+    await advance(hass, frozen_time, STALE_AFTER - timedelta(days=1))
+    assert hass.states.get(TV).state == "off"
+    assert (
+        _device(device_registry, mock_config_entry, f"{SERVER_ID}:app-12") is not None
+    )
+
+    # Away for over a month, it's gone; the server stays.
+    await advance(hass, frozen_time, timedelta(days=2))
+    assert _device(device_registry, mock_config_entry, f"{SERVER_ID}:app-12") is None
+    assert entity_registry.async_get(TV) is None
+    assert hass.states.get(TV) is None
+    assert "app-12" not in mock_config_entry.runtime_data.coordinator.last_seen
+    assert _device(device_registry, mock_config_entry, SERVER_ID)
+
+    # Back again, it's added again.
+    fake_pley.receivers = [TV_RECEIVER]
+    await advance(hass, frozen_time, IDLE_INTERVAL)
+    assert (
+        _device(device_registry, mock_config_entry, f"{SERVER_ID}:app-12") is not None
+    )
+    assert hass.states.get(TV).state == "idle"
+
+
+async def test_last_seen_kept(
+    hass: HomeAssistant,
+    fake_pley: FakePley,
+    mock_config_entry: MockConfigEntry,
+    frozen_time: FrozenDateTimeFactory,
+    device_registry: dr.DeviceRegistry,
+    hass_storage: dict[str, Any],
+) -> None:
+    """Test when each device was seen is kept across restarts.
+
+    A device seen before the integration kept track counts from its start.
+    """
+    key = f"{DOMAIN}.{mock_config_entry.entry_id}.last_seen"
+    hass_storage[key] = {
+        "version": 1,
+        "key": key,
+        "data": {
+            "last_seen": {"app-12": (NOW - STALE_AFTER - timedelta(days=1)).isoformat()}
+        },
+    }
+    mock_config_entry.add_to_hass(hass)
+    for device_id in ("app-12", "app-15"):
+        device_registry.async_get_or_create(
+            config_entry_id=mock_config_entry.entry_id,
+            identifiers={(DOMAIN, f"{SERVER_ID}:{device_id}")},
+        )
+    fake_pley.receivers = [{**TV_RECEIVER, "device_id": "app-20"}]
+    await setup_integration(hass, mock_config_entry)
+
+    assert _device(device_registry, mock_config_entry, f"{SERVER_ID}:app-12") is None
+    assert (
+        _device(device_registry, mock_config_entry, f"{SERVER_ID}:app-15") is not None
+    )
+    # Saved a while later, not every poll.
+    await advance(hass, frozen_time, LAST_SEEN_SAVE_DELAY)
+    assert hass_storage[key]["data"] == {
+        "last_seen": {"app-15": NOW.isoformat(), "app-20": NOW.isoformat()}
+    }
+
+    # Saved at once when the entry unloads, and gone when it's removed.
+    await advance(hass, frozen_time, IDLE_INTERVAL)
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    seen = hass_storage[key]["data"]["last_seen"]
+    assert seen["app-20"] > NOW.isoformat()
+    await hass.config_entries.async_remove(mock_config_entry.entry_id)
+    assert key not in hass_storage
+
+
+async def test_remove_device_by_hand(
+    hass: HomeAssistant,
+    fake_pley: FakePley,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    hass_ws_client: WebSocketGenerator,
+) -> None:
+    """Test a device Pley doesn't list now may be removed, and comes back if it's seen."""
+    fake_pley.receivers = [TV_RECEIVER]
+    fake_pley.sessions = [PHONE_SESSION]
+    await setup_integration(hass, mock_config_entry)
+    assert await async_setup_component(hass, "config", {})
+    client = await hass_ws_client(hass)
+
+    async def remove(device: dr.DeviceEntry | None) -> bool:
+        assert device is not None
+        await client.send_json_auto_id(
+            {
+                "type": "config/device_registry/remove_config_entry",
+                "config_entry_id": mock_config_entry.entry_id,
+                "device_id": device.id,
+            }
+        )
+        return bool((await client.receive_json())["success"])
+
+    # Neither the server nor a device that's there now.
+    assert not await remove(_device(device_registry, mock_config_entry, SERVER_ID))
+    assert not await remove(
+        _device(device_registry, mock_config_entry, f"{SERVER_ID}:app-12")
+    )
+
+    fake_pley.sessions = []
+    coordinator = mock_config_entry.runtime_data.coordinator
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert await remove(
+        _device(device_registry, mock_config_entry, f"{SERVER_ID}:app-15")
+    )
+    assert _device(device_registry, mock_config_entry, f"{SERVER_ID}:app-15") is None
+    await coordinator.async_refresh()
+    assert "app-15" not in coordinator.last_seen
+
+    fake_pley.sessions = [PHONE_SESSION]
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert (
+        _device(device_registry, mock_config_entry, f"{SERVER_ID}:app-15") is not None
     )

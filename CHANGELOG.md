@@ -37,3 +37,14 @@ ID from the web app's address for it. Its `extra` can say where a title
 starts (`start_ms`), shuffle a playlist, an album or an artist (`shuffle`),
 and choose a film's or an episode's audio and subtitles (`audio_index` and
 `subtitle_index`). The TV says it's playing from Home Assistant.
+
+### Fix what's wrong on the server's side, and change its address
+
+When the Pley server is too old for the integration, or something other than
+your server answers at its address, a repair in Settings → Repairs says
+what's wrong and what to do, and goes away once it's fixed. If the server
+gets a new address, change it with Reconfigure on the integration's page:
+the server proves it's the same one before Home Assistant uses it. A device
+Pley hasn't seen for 30 days is removed from Home Assistant, and comes back
+if it plays again; one that isn't there now can also be deleted from its
+device page.

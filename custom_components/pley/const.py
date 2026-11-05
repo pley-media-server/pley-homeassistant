@@ -51,3 +51,16 @@ EVENTS_RETRY_INTERVAL: Final = timedelta(minutes=5)
 
 # The width artwork is fetched at: enough for a media card.
 IMAGE_WIDTH: Final = 640
+
+# A device Pley hasn't listed for this long is removed from Home Assistant:
+# a TV off for a day or a holiday comes back, one gone for a month has most
+# likely been replaced, or had Pley removed.
+STALE_AFTER: Final = timedelta(days=30)
+# How long a new time a device was seen may wait to be saved: seen every
+# poll, it needn't be written every poll.
+LAST_SEEN_SAVE_DELAY: Final = timedelta(minutes=10)
+
+# Where the README says what to do about each repair issue.
+TROUBLESHOOTING_URL: Final = (
+    "https://github.com/pley-media-server/pley-homeassistant#troubleshooting"
+)

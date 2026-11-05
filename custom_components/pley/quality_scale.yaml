@@ -17,7 +17,9 @@ rules:
   config-flow-test-coverage: done
   dependency-transparency:
     status: exempt
-    comment: The integration has no requirements.
+    comment: |
+      The API client is part of the integration, in pleyclient/, and has no
+      requirements of its own.
   docs-actions:
     status: exempt
     comment: The integration has no actions of its own.
@@ -30,7 +32,11 @@ rules:
   docs-triggers:
     status: exempt
     comment: The integration has no triggers.
-  entity-event-setup: done
+  entity-event-setup:
+    status: done
+    comment: |
+      Entities follow the coordinator, which listens to the server's events
+      for as long as the entry is loaded.
   entity-unique-id: done
   has-entity-name: done
   runtime-data: done
@@ -45,7 +51,9 @@ rules:
   docs-installation-parameters: todo
   entity-unavailable: done
   integration-owner: done
-  log-when-unavailable: done
+  log-when-unavailable:
+    status: done
+    comment: The data update coordinator logs when fetching fails and recovers.
   parallel-updates: done
   reauthentication-flow: done
   test-coverage: done
@@ -73,9 +81,13 @@ rules:
   docs-use-cases: todo
   dynamic-devices: done
   entity-category:
-    status: exempt
-    comment: Each media player is its device's main entity.
-  entity-device-class: done
+    status: done
+    comment: Each media player is its device's main entity, so has no category.
+  entity-device-class:
+    status: done
+    comment: |
+      A TV's media player has the TV device class. Media players have no
+      class for phones, tablets, computers or browsers.
   entity-disabled-by-default:
     status: done
     comment: |
@@ -84,11 +96,31 @@ rules:
   entity-translations: done
   exception-translations: done
   icon-translations: done
-  reconfiguration-flow: todo
-  repair-issues: todo
-  stale-devices: todo
+  reconfiguration-flow:
+    status: done
+    comment: |
+      The server's address can be changed, for the same server only: it must
+      prove it is the one signed in to before the entry uses the address.
+  repair-issues:
+    status: done
+    comment: |
+      A server older than the integration needs, and something other than the
+      server answering at its address, each say what to do and clear once
+      fixed. A sign-in the server refuses starts reauthentication instead.
+  stale-devices:
+    status: done
+    comment: |
+      A device Pley hasn't listed for 30 days is removed. Devices come and go
+      as their apps open and close, so absence alone doesn't mean gone; one
+      not listed now can also be deleted by hand.
 
   # Platinum
   async-dependency: done
-  inject-websession: done
-  strict-typing: done
+  inject-websession:
+    status: done
+    comment: The client takes Home Assistant's aiohttp session.
+  strict-typing:
+    status: done
+    comment: |
+      mypy runs in strict mode on the integration and its client, which ships
+      a py.typed marker.

@@ -9,12 +9,20 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.loader import async_get_integration
 
-from .const import CLIENT_ID, CONF_TOKENS, DOMAIN, USER_AGENT_PRODUCT
-from .coordinator import PleyConfigEntry, PleyCoordinator, PleyRuntimeData
+from .const import CLIENT_ID, CONF_TOKENS, DOMAIN, SCOPE, USER_AGENT_PRODUCT
+from .coordinator import (
+    PleyConfigEntry,
+    PleyCoordinator,
+    PleyRuntimeData,
+    last_seen_store,
+    pley_device_id,
+)
+from .issues import SERVER_TOO_OLD, WRONG_SERVER, async_clear_issues, async_raise_issue
 from .pleyclient import (
     PleyAuthError,
     PleyClient,
     PleyError,
+    ServerTooOld,
     Tokens,
     TokensCallback,
     WrongServer,
@@ -64,15 +72,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: PleyConfigEntry) -> bool
         # The server proves it is the one signed in to before it is sent a
         # token: the address may lead to another device now.
         server = await client.verify()
+        # The server may have been put back to an older version since the
+        # sign-in, or this version of the integration may need a newer one.
+        await client.metadata(SCOPE.split())
         account = await client.me()
     except PleyAuthError as err:
         raise ConfigEntryAuthFailed(
             translation_domain=DOMAIN, translation_key="auth_failed"
         ) from err
     except WrongServer as err:
+        async_raise_issue(hass, entry, WRONG_SERVER)
         raise ConfigEntryNotReady(
             translation_domain=DOMAIN,
             translation_key="wrong_server",
+            translation_placeholders=placeholders,
+        ) from err
+    except ServerTooOld as err:
+        # Tried again now and then, so it carries on once Pley is updated.
+        async_raise_issue(hass, entry, SERVER_TOO_OLD)
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="too_old",
             translation_placeholders=placeholders,
         ) from err
     except PleyError as err:
@@ -82,7 +102,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: PleyConfigEntry) -> bool
             translation_placeholders=placeholders,
         ) from err
 
+    async_clear_issues(hass, entry)
     coordinator = PleyCoordinator(hass, entry, client, server, account)
+    await coordinator.async_load()
     await coordinator.async_config_entry_first_refresh()
     server_device = dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
@@ -109,7 +131,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: PleyConfigEntry) -> bool
 
 async def async_unload_entry(hass: HomeAssistant, entry: PleyConfigEntry) -> bool:
     """Unload a config entry."""
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    # Saved now, for the entry loading again, or removing what it saved.
+    await entry.runtime_data.coordinator.async_save()
+    return unloaded
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: PleyConfigEntry, device_entry: dr.DeviceEntry
+) -> bool:
+    """Allow removing a device Pley doesn't list now, but not the server.
+
+    One that comes back is added again.
+    """
+    coordinator = entry.runtime_data.coordinator
+    device_id = pley_device_id(device_entry, coordinator.server.id)
+    return device_id is not None and device_id not in coordinator.data.devices
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: PleyConfigEntry) -> None:
@@ -118,6 +155,8 @@ async def async_remove_entry(hass: HomeAssistant, entry: PleyConfigEntry) -> Non
     Best effort: a server out of reach keeps the sign-in until it lapses, or
     someone signs it out in Pley's settings.
     """
+    async_clear_issues(hass, entry)
+    await last_seen_store(hass, entry.entry_id).async_remove()
     if (tokens := Tokens.from_dict(entry.data.get(CONF_TOKENS))) is None:
         return
     client = await async_create_client(hass, entry.data[CONF_URL], tokens)

@@ -66,4 +66,9 @@ async def async_get_config_entry_diagnostics(
         "update_interval": str(coordinator.update_interval),
         "fetched_at": coordinator.data.fetched_at.isoformat(),
         "devices": [_device(device) for device in coordinator.data.devices.values()],
+        # Which devices are removed for being away a month, and when.
+        "last_seen": {
+            device_id: seen.isoformat()
+            for device_id, seen in sorted(coordinator.last_seen.items())
+        },
     }

@@ -20,6 +20,16 @@
         "title": "[%key:common::config_flow::title::reauth%]",
         "description": "The Pley server {name} at {url} no longer accepts Home Assistant's sign-in. Sign in again with a code, as the same profile."
       },
+      "reconfigure": {
+        "title": "Change the server's address",
+        "description": "Enter the address the Pley server {name} has now. It must be the same server: it proves it is before Home Assistant uses the new address.",
+        "data": {
+          "url": "[%key:component::pley::config::step::user::data::url%]"
+        },
+        "data_description": {
+          "url": "[%key:component::pley::config::step::user::data_description::url%]"
+        }
+      },
       "link": {
         "title": "Sign in to Pley"
       },
@@ -61,6 +71,9 @@
         "description": "Pley adds a media player for each device that plays or is ready to. Devices of the kinds chosen here start enabled; the others start disabled. This applies to devices Pley first sees from now on: enable or disable one seen before on its device page.",
         "data": {
           "shown_kinds": "Devices shown by default"
+        },
+        "data_description": {
+          "shown_kinds": "Devices of the other kinds still get a media player, disabled until you enable it on the device's page."
         }
       }
     }
@@ -213,6 +226,16 @@
       }
     }
   },
+  "issues": {
+    "server_too_old": {
+      "title": "The Pley server {name} needs updating",
+      "description": "The Pley server {name} at {url} is older than this version of Pley for Home Assistant needs, so its devices aren't shown and can't be controlled.\n\nUpdate Pley on the server. Home Assistant tries the server again every so often, and this goes away once it connects."
+    },
+    "wrong_server": {
+      "title": "The Pley server {name} isn't at its address",
+      "description": "Something answers at {url} that can't prove it is the Pley server {name}: another Pley server, or another device. Home Assistant sends it nothing, so the server's devices aren't shown.\n\nIf the server has a new address, change it: in **Settings** → **Devices & services** → **Pley**, choose **Reconfigure** from the server's menu. If the server was reinstalled with a fresh data folder, it is a new server: delete this entry and add Pley again.\n\nThis goes away once the server answers at its address again."
+    }
+  },
   "exceptions": {
     "auth_failed": {
       "message": "The Pley server no longer accepts Home Assistant's sign-in."
@@ -222,6 +245,9 @@
     },
     "wrong_server": {
       "message": "A different Pley server, or another device, answers at {url}, so Home Assistant sends it no token."
+    },
+    "too_old": {
+      "message": "The Pley server at {url} is too old for this version of Pley for Home Assistant. Update Pley on the server."
     },
     "update_failed": {
       "message": "Can't fetch what plays from the Pley server: {error}"
