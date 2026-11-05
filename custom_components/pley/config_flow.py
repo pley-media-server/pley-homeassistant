@@ -234,12 +234,19 @@ class PleyConfigFlow(ConfigFlow, domain=DOMAIN):
         """Return whether an entry's server moved to an address found by Bonjour.
 
         Anything on the network can announce any id, so the server there
-        must prove it is the one signed in to, as it does before it gets a
-        token, or the entry would follow it.
+        must answer a challenge with an HMAC under the sign-in's proof key,
+        or the entry would follow it. A sign-in without a key has nothing
+        but the id to go on, which Pley announces, so it stays put: the
+        address can still be changed by hand.
         """
         current = entry.data.get(CONF_URL)
         tokens = Tokens.from_dict(entry.data.get(CONF_TOKENS))
-        if current in (None, url) or tokens is None or not _follows_discovery(current):
+        if (
+            current in (None, url)
+            or tokens is None
+            or tokens.proof_key is None
+            or not _follows_discovery(current)
+        ):
             return False
         return await self._async_proof_error(url, tokens) is None
 

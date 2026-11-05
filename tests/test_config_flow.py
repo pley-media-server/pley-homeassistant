@@ -446,6 +446,39 @@ async def test_zeroconf_follows_server(
     assert "Authorization" not in proof[3]
 
 
+async def test_zeroconf_without_proof_key(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    mock_config_entry: MockConfigEntry,
+) -> None:
+    """Test a sign-in without a proof key doesn't follow an announcement.
+
+    Its only check would be the id, which anything can repeat.
+    """
+    tokens = {
+        **mock_config_entry.data[CONF_TOKENS],
+        "proof_id": None,
+        "proof_key": None,
+    }
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        data={
+            **mock_config_entry.data,
+            CONF_URL: "http://192.168.1.30:7539",
+            CONF_TOKENS: tokens,
+        },
+    )
+    mock_proof(aioclient_mock)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_ZEROCONF}, data=DISCOVERY
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert mock_config_entry.data[CONF_URL] == "http://192.168.1.30:7539"
+    assert not aioclient_mock.mock_calls
+
+
 @pytest.mark.parametrize(
     ("address", "response"),
     [

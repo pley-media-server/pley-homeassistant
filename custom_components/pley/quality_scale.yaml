@@ -69,9 +69,10 @@ rules:
   discovery-update-info:
     status: done
     comment: |
-      A server found at a new IP address moves its entry there, once the
-      server there proves it is the one signed in to. An address someone
-      chose (a host name, or https) is kept.
+      A server found at a new IP address moves its entry there, once it
+      answers a challenge with an HMAC under the sign-in's proof key. A
+      sign-in without a key, and an address someone chose (a host name, or
+      https), are kept where they are.
   docs-data-update: done
   docs-examples: done
   docs-known-limitations: done

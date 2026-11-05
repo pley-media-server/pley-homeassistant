@@ -105,7 +105,9 @@ If the server gets a new address, choose **Reconfigure** from the
 integration's menu, and enter it. The server must prove it's the same one
 before Home Assistant uses the new address. A server added by its IP address
 and found on the network at a new one is moved there by itself, after the
-same proof.
+same check. Pley makes that check with a key it can only hand out while it
+can read its `secret.key`; a sign-in made without one is never moved by
+itself, so change its address with **Reconfigure**.
 
 ## What you get
 
