@@ -14,11 +14,21 @@ from hypothesis import given, settings, strategies as st
 
 from custom_components.pley.pleyclient import (
     Account,
+    Channel,
     DeviceCode,
     EventStreamDecoder,
+    Hub,
     InvalidAddress,
+    Item,
+    Library,
+    LiveGroups,
+    LiveStatus,
+    Page,
+    Picture,
+    Playlist,
     PleyEvent,
     Receiver,
+    SearchResults,
     ServerInfo,
     ServerMetadata,
     Session,
@@ -88,6 +98,23 @@ KEYS = [
     "server_id",
     "proof_id",
     "proof_key",
+    "items",
+    "total",
+    "key",
+    "hubs",
+    "item_count",
+    "artwork",
+    "entries",
+    "allowed",
+    "available",
+    "groups",
+    "favorites",
+    "recent",
+    "count",
+    "channels",
+    "start",
+    "stop",
+    "thumb_url",
 ]
 # Values Pley sends, mixed in so generated answers take the parsing branches.
 REALISTIC = st.sampled_from(
@@ -106,6 +133,11 @@ REALISTIC = st.sampled_from(
         "sessions_changed",
         "session_stopped",
         "library play activity",
+        "movies",
+        "audio",
+        "recently_added:1",
+        "/api/items/42/images/poster?v=1",
+        "/api/live/channels/7/logo",
         "app-12",
         "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
         "",
@@ -154,6 +186,38 @@ def test_answers_parsed_or_rejected(payload: Any) -> None:
         assert isinstance(account.name, str)
     if (event := PleyEvent.from_api(payload)) is not None:
         assert isinstance(event.name, str)
+
+
+@given(PAYLOADS | JSON)
+def test_library_answers_parsed_or_rejected(payload: Any) -> None:
+    """Test any answer to the media browser's requests is read or rejected, without raising."""
+    if (library := Library.from_api(payload)) is not None:
+        assert library.item_count >= 0
+    if (hub := Hub.from_api(payload)) is not None:
+        assert all(isinstance(item.id, int) for item in hub.items)
+    if (playlist := Playlist.from_api(payload)) is not None:
+        assert playlist.artwork is None or isinstance(playlist.artwork, str)
+        assert all(isinstance(item.id, int) for item in playlist.entries)
+    if (status := LiveStatus.from_api(payload)) is not None:
+        assert isinstance(status.allowed, bool)
+    if (groups := LiveGroups.from_api(payload)) is not None:
+        assert groups.favorites >= 0
+        assert all(group.count >= 0 for group in groups.groups)
+    if (results := SearchResults.from_api(payload)) is not None:
+        assert all(isinstance(channel.id, int) for channel in results.channels)
+    if (channel := Channel.from_api(payload)) is not None:
+        assert channel.now is None or isinstance(channel.now, str)
+    for key, parse in (("items", Item.from_api), ("channels", Channel.from_api)):
+        if (page := Page.from_api(payload, key, parse)) is not None:
+            assert page.total >= len(page.items)
+
+
+@given(st.text(max_size=60) | REALISTIC | JSON)
+def test_any_picture_address(url: Any) -> None:
+    """Test any address is a picture on the server, or none, and only the server's."""
+    if (picture := Picture.from_url(url)) is not None:
+        assert picture.path.startswith(("/api/items/", "/api/live/channels/"))
+        assert Picture.from_url(picture.path) == picture
 
 
 @given(PAYLOADS, st.floats(min_value=0, max_value=4e9))

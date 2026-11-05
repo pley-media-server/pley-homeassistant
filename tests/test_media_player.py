@@ -57,6 +57,8 @@ ALL_FEATURES = (
     | Feature.NEXT_TRACK
     | Feature.PREVIOUS_TRACK
 )
+# What a device open to play what it's sent takes besides.
+CAST_FEATURES = Feature.PLAY_MEDIA | Feature.BROWSE_MEDIA | Feature.SEARCH_MEDIA
 
 
 async def _refresh(hass: HomeAssistant, entry: MockConfigEntry) -> None:
@@ -80,7 +82,7 @@ async def test_idle_then_off(
     state = hass.states.get(TV)
     assert state.state == "idle"
     assert state.attributes["device_class"] == "tv"
-    assert state.attributes[ATTR_SUPPORTED_FEATURES] == Feature.PLAY_MEDIA
+    assert state.attributes[ATTR_SUPPORTED_FEATURES] == CAST_FEATURES
     assert state.attributes["device_kind"] == "tv"
     assert state.attributes["casts"] == ["item", "live"]
     assert "media_title" not in state.attributes
@@ -106,9 +108,7 @@ async def test_movie(
 
     state = hass.states.get(TV)
     assert state.state == "playing"
-    assert state.attributes[ATTR_SUPPORTED_FEATURES] == (
-        ALL_FEATURES | Feature.PLAY_MEDIA
-    )
+    assert state.attributes[ATTR_SUPPORTED_FEATURES] == (ALL_FEATURES | CAST_FEATURES)
     assert state.attributes["media_content_id"] == "pley://item/42"
     assert state.attributes["media_content_type"] == "movie"
     assert state.attributes["media_title"] == "Arrival"
@@ -219,7 +219,7 @@ async def test_live(
     state = hass.states.get(TV)
     assert state.state == "playing"
     assert state.attributes[ATTR_SUPPORTED_FEATURES] == (
-        Feature.STOP | Feature.NEXT_TRACK | Feature.PREVIOUS_TRACK | Feature.PLAY_MEDIA
+        Feature.STOP | Feature.NEXT_TRACK | Feature.PREVIOUS_TRACK | CAST_FEATURES
     )
     assert state.attributes["media_content_id"] == "pley://channel/7"
     assert state.attributes["media_content_type"] == "channel"

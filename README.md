@@ -8,13 +8,16 @@ Brings the devices that play from your [Pley](https://github.com/pley-media-serv
 media server into Home Assistant. Each TV and app shows what it plays as a
 media player, with its artwork, and your dashboards and automations can
 pause it, skip, stop it, or start a film, a playlist or a Live TV channel on
-it.
+it. Home Assistant's media browser lists your Pley libraries, playlists and
+channels, and searches them, to pick what a TV plays.
 
 ## Use cases
 
 - Dim the lights when a film starts on the living room TV, and bring them
   back up when it stops.
 - Put the news on the kitchen TV at 7 every evening.
+- Pick a film from your Pley library on a phone, in Home Assistant's media
+  panel, and play it on the living room TV.
 - Pause the TV when the doorbell rings.
 - See on a dashboard what plays on every TV in the house, and, on Pley's
   administrator's profile, stop anyone's stream from there.
@@ -84,11 +87,12 @@ and choose **Pley**, or use this button:
 1. That's it: the server and its devices appear.
 
 The sign-in shows in Pley under **Account → Apps** as Pley for Home
-Assistant, where you can sign it out. It may see your libraries (for
-artwork), see what plays and stop it, and play on and control your
-profile's devices. Before Home Assistant sends the server anything signed
-in, the server answers a challenge with a key only it and Home Assistant
-share, so nothing else at its address gets your sign-in.
+Assistant, where you can sign it out. It may see your libraries and
+playlists (for the media browser and artwork), see what plays and stop it,
+and play on and control your profile's devices. Before Home Assistant sends
+the server anything signed in, the server answers a challenge with a key
+only it and Home Assistant share, so nothing else at its address gets your
+sign-in.
 
 YAML configuration isn't supported.
 
@@ -145,6 +149,51 @@ above. Phones, tablets, computers, web browsers and others are added
 disabled: enable the ones you want on their device pages. A device Pley
 hasn't seen for 30 days is removed, and comes back if it plays again; one
 Pley doesn't list now can also be deleted from its device page.
+
+### Picking from your library
+
+The media browser shows what's in Pley, to play on one of your devices whose
+Pley app is open: an idle, playing or paused TV. Open **Media** in Home
+Assistant's sidebar and choose the TV as the player at the bottom, or choose
+**Browse media** on the TV's media player. Other people's devices, browsers
+and TVs whose app is closed have no browser, as they can't be sent anything
+to play.
+
+It shows:
+
+- **Your libraries**, in the order you set in Pley, leaving out any with
+  nothing in them your profile may see. Each opens to its rows (Continue
+  Watching, Recently Added and the others Pley has), then every film, show
+  or artist from A to Z. A show opens to its seasons and episodes, an
+  artist to albums and tracks.
+- **Playlists**, if you have any with something in them. Each plays in
+  order from the start, or opens to its entries. An entry picked there
+  plays on its own, as that title would anywhere else, not the rest of the
+  playlist after it.
+- **Live TV**, if the TV's app plays it and your profile may watch it:
+  your favourite channels, those you watched lately, then the lineup's
+  groups, each with its channels. When some channels are in no group, as in
+  a lineup without groups, **All channels** lists every one.
+
+Picking one plays it at once, as the TV's own **Play** would: a film, an
+episode or a track; a show or a season plays its next episode, an album or
+an artist its tracks, a playlist in order. Bonus material such as trailers
+isn't listed. Pictures come from Pley through Home Assistant, so the
+browser shows them wherever you are.
+
+A folder lists up to 2,000 titles, playlist entries or channels. A library
+with more lists the first 2,000 from A to Z; search finds the others. A
+playlist too long for Home Assistant to read (over 16 MiB from Pley, such as
+thousands of episodes with long synopses) doesn't open, but still plays.
+
+**Search**, in the media browser, finds films, shows, seasons, episodes,
+artists, albums and tracks by their names, and Live TV channels by their
+name, number or what's on, as Pley's own search does: up to 50 of each,
+closest first. Only what the TV plays is found: a TV whose app doesn't play
+Live TV gets no channels.
+
+What the browser plays has the same IDs as `media_player.play_media`, below,
+so an automation can play whatever you find there.
 
 ### Playing a title, a playlist or a channel
 
@@ -242,8 +291,13 @@ actions:
 
 ## Known limitations
 
-- There's no media browser: titles, playlists and channels are played by
-  their IDs from Pley's web app.
+- The media browser lists at most 2,000 titles, entries or channels in a
+  folder: search finds the rest.
+- The media browser's own folders (Playlists, Live TV, Favourites, Recently
+  watched) are named in English, as Home Assistant has no way to translate
+  them; a library's rows are named as Pley names them.
+- Search finds titles and channels, not the people Pley's own search also
+  finds.
 - Audio, subtitles and quality can't be changed from Home Assistant, only
   chosen as a title starts. Pley's own apps change them from their remotes.
 - Home Assistant is a remote, not a player: Pley doesn't list it as a

@@ -33,9 +33,19 @@ from .const import (
     EVENTS_PATH,
     EVENTS_READ_TIMEOUT,
     IMAGE_TYPES,
+    ITEMS_PATH,
+    LIBRARIES_PATH,
+    LIVE_BROWSE_PATH,
+    LIVE_GROUPS_PATH,
+    LIVE_PATH,
     MAX_IMAGE_BYTES,
+    MAX_LISTED,
+    MAX_QUERY_LENGTH,
+    MAX_SEARCH_RESULTS,
     ME_PATH,
     METADATA_PATH,
+    PAGE_SIZE,
+    PLAYLISTS_PATH,
     PROOF_CONTEXT,
     PROOF_LIFETIME,
     RECONNECT_DELAYS,
@@ -43,6 +53,7 @@ from .const import (
     REFRESH_TOKEN_GRANT,
     REQUEST_TIMEOUT,
     REVOKE_PATH,
+    SEARCH_PATH,
     SERVER_PATH,
     SESSIONS_PATH,
     SLOW_DOWN_SECONDS,
@@ -69,9 +80,20 @@ from .exceptions import (
 )
 from .models import (
     Account,
+    Channel,
     Control,
     DeviceCode,
+    Hub,
+    Item,
+    Library,
+    LiveCategory,
+    LiveGroups,
+    LiveStatus,
+    Page,
+    Picture,
+    Playlist,
     Receiver,
+    SearchResults,
     ServerInfo,
     ServerMetadata,
     Session,
@@ -83,6 +105,9 @@ _LOGGER = logging.getLogger(__name__)
 
 # The largest JSON answer read: a busy server's activity is far smaller.
 MAX_JSON_BYTES = 4 * 1024 * 1024
+# A playlist comes whole, with up to 5,000 entries, an episode's with its
+# synopsis: over a kilobyte each.
+MAX_PLAYLIST_BYTES = 16 * 1024 * 1024
 
 # Host names only a local network resolves, which plain http may reach.
 _LOCAL_SUFFIXES = (".local", ".lan", ".home", ".home.arpa", ".internal", ".localdomain")
@@ -207,14 +232,29 @@ async def _read(response: ClientResponse, limit: int) -> bytes | None:
     return bytes(body)
 
 
-async def _json(response: ClientResponse) -> Any:
-    """Return an answer's JSON, or None if it isn't JSON."""
-    if (body := await _read(response, MAX_JSON_BYTES)) is None:
-        return None
+def _loads(body: bytes) -> Any:
+    """Return the JSON in a body, or None if it isn't JSON."""
     try:
         return json.loads(body)
     except RecursionError, ValueError:
         return None
+
+
+async def _json(response: ClientResponse) -> Any:
+    """Return an answer's JSON, or None if it isn't JSON."""
+    if (body := await _read(response, MAX_JSON_BYTES)) is None:
+        return None
+    return _loads(body)
+
+
+async def _playlist_json(response: ClientResponse) -> Any:
+    """Return a playlist's JSON, or None if it isn't JSON.
+
+    Raises PleyError when the playlist is too long to read.
+    """
+    if (body := await _read(response, MAX_PLAYLIST_BYTES)) is None:
+        raise PleyError("the playlist is too long to list")
+    return _loads(body)
 
 
 async def _status_and_json(response: ClientResponse) -> tuple[int, Any]:
@@ -703,6 +743,153 @@ class PleyClient:
             return await self._authorized("GET", url.raw_path, _picture, params=params)
         except PleyNotFound:
             return None
+
+    async def picture(
+        self, picture: Picture, width: int | None = None
+    ) -> tuple[bytes, str] | None:
+        """Return a title's picture or a channel's logo, at `width` pixels if given."""
+        return await self.image(picture.path, width)
+
+    async def _list(self, path: str, key: str, **kwargs: Any) -> list[Any]:
+        """Return the list an answer holds under `key`."""
+        answer = await self._api("GET", path, **kwargs)
+        entries = answer.get(key) if isinstance(answer, dict) else None
+        if not isinstance(entries, list):
+            raise PleyError(f"unexpected answer from {path}")
+        return entries
+
+    async def _pages[T](
+        self,
+        path: str,
+        key: str,
+        parse: Callable[[Any], T | None],
+        limit: int,
+        params: dict[str, str],
+    ) -> Page[T]:
+        """Return a long list up to `limit` entries, fetched a page at a time.
+
+        The pages asked for are counted before the first, so a server that
+        answers short pages, or a total that keeps growing, can't keep the
+        client asking.
+        """
+        limit = min(max(limit, 1), MAX_LISTED)
+        items: list[T] = []
+        total = 0
+        for offset in range(0, limit, PAGE_SIZE):
+            size = min(PAGE_SIZE, limit - offset)
+            answer = await self._api(
+                "GET",
+                path,
+                params={**params, "offset": str(offset), "limit": str(size)},
+            )
+            if (page := Page.from_api(answer, key, parse)) is None:
+                raise PleyError(f"unexpected answer from {path}")
+            items.extend(page.items)
+            total = page.total
+            # A short page is the last one.
+            if len(page.items) < size or offset + size >= total:
+                break
+        items = items[:limit]
+        return Page(total=max(total, len(items)), items=tuple(items))
+
+    async def libraries(self) -> list[Library]:
+        """Return the libraries the profile may open, in its order."""
+        answer = await self._api("GET", LIBRARIES_PATH)
+        if not isinstance(answer, list):
+            raise PleyError(f"unexpected answer from {LIBRARIES_PATH}")
+        return parse_list(answer, Library.from_api)
+
+    async def library_items(self, library_id: int, limit: int) -> Page[Item]:
+        """Return a library's films, shows or artists A to Z, up to `limit`."""
+        return await self._pages(
+            f"{LIBRARIES_PATH}/{library_id}/items",
+            "items",
+            Item.from_api,
+            limit,
+            {"sort": "title"},
+        )
+
+    async def hubs(self, library_id: int) -> list[Hub]:
+        """Return a library's rows, such as Continue Watching, leaving out empty ones."""
+        rows = await self._list(f"{LIBRARIES_PATH}/{library_id}/hubs", "hubs")
+        return parse_list(rows, Hub.from_api)
+
+    async def item(self, item_id: int) -> Item:
+        """Return a title."""
+        path = f"{ITEMS_PATH}/{item_id}"
+        if (item := Item.from_api(await self._api("GET", path))) is None:
+            raise PleyError(f"unexpected answer from {path}")
+        return item
+
+    async def children(self, item_id: int) -> list[Item]:
+        """Return a show's seasons, a season's episodes, an artist's albums or an album's tracks."""
+        children = await self._list(f"{ITEMS_PATH}/{item_id}/children", "items")
+        return parse_list(children, Item.from_api)
+
+    async def playlists(self) -> list[Playlist]:
+        """Return the profile's playlists by title, without their entries."""
+        playlists = await self._list(PLAYLISTS_PATH, "playlists")
+        return parse_list(playlists, Playlist.from_api)
+
+    async def playlist(self, playlist_id: int) -> Playlist:
+        """Return one of the profile's playlists, with its entries in order.
+
+        Raises PleyError for one too long to read, past 16 MiB.
+        """
+        path = f"{PLAYLISTS_PATH}/{playlist_id}"
+        answer = await self._authorized("GET", path, _playlist_json)
+        if (playlist := Playlist.from_api(answer)) is None:
+            raise PleyError(f"unexpected answer from {path}")
+        return playlist
+
+    async def live(self) -> LiveStatus:
+        """Return whether the profile may watch Live TV, and it has channels."""
+        if (status := LiveStatus.from_api(await self._api("GET", LIVE_PATH))) is None:
+            raise PleyError(f"unexpected answer from {LIVE_PATH}")
+        return status
+
+    async def live_groups(self) -> LiveGroups:
+        """Return the Live TV lineup's groups, in its order.
+
+        Raises PleyForbidden when the profile may not watch Live TV.
+        """
+        answer = await self._api("GET", LIVE_GROUPS_PATH)
+        if (groups := LiveGroups.from_api(answer)) is None:
+            raise PleyError(f"unexpected answer from {LIVE_GROUPS_PATH}")
+        return groups
+
+    async def live_channels(
+        self, category: LiveCategory, limit: int, group: str | None = None
+    ) -> Page[Channel]:
+        """Return a list's Live TV channels, up to `limit`, with what's on.
+
+        `group` names the group, for LiveCategory.GROUP. Raises
+        PleyForbidden when the profile may not watch Live TV.
+        """
+        params = {"category": category.value}
+        if group is not None:
+            params["group"] = group
+        return await self._pages(
+            LIVE_BROWSE_PATH, "channels", Channel.from_api, limit, params
+        )
+
+    async def search(self, query: str, limit: int) -> SearchResults:
+        """Return the titles and Live TV channels a search finds, up to `limit` of each.
+
+        Channels only come for a profile that may watch Live TV.
+        """
+        query = query.strip()[:MAX_QUERY_LENGTH].rstrip()
+        limit = min(max(limit, 1), MAX_SEARCH_RESULTS)
+        if not query:
+            return SearchResults(items=(), channels=())
+        answer = await self._api(
+            "GET", SEARCH_PATH, params={"q": query, "limit": str(limit)}
+        )
+        if (results := SearchResults.from_api(answer)) is None:
+            raise PleyError(f"unexpected answer from {SEARCH_PATH}")
+        return SearchResults(
+            items=results.items[:limit], channels=results.channels[:limit]
+        )
 
     async def events(self) -> AsyncGenerator[PleyEvent]:
         """Yield the server's events, connecting again whenever the stream drops.

@@ -30,12 +30,16 @@ from homeassistant.components.media_player import (
     ATTR_MEDIA_CONTENT_TYPE,
     DOMAIN as MEDIA_PLAYER_DOMAIN,
     SERVICE_PLAY_MEDIA,
+    MediaClass,
+    MediaPlayerEntity,
     MediaPlayerState,
+    SearchMediaQuery,
 )
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import ATTR_ENTITY_ID, CONF_URL, SERVICE_MEDIA_PAUSE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.entity_component import DATA_INSTANCES
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -402,6 +406,39 @@ async def tv(pley: Pley, world: World, web: ClientSession) -> AsyncGenerator[Sta
     await stand_in.close()
 
 
+async def _add_entry(
+    hass: HomeAssistant, pley: Pley, client: PleyClient, device_id: str
+) -> tuple[MockConfigEntry, str]:
+    """Add the server to Home Assistant with the client's sign-in.
+
+    Return its entry, and the media player of one of the profile's devices.
+    """
+    tokens = client.tokens
+    assert tokens is not None
+    account = await client.me()
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pley",
+        unique_id=tokens.server_id,
+        data={
+            CONF_URL: pley.url,
+            CONF_TOKENS: tokens.as_dict(),
+            CONF_USER_ID: account.id,
+            CONF_USERNAME: account.username,
+        },
+        options={OPT_SHOWN_KINDS: ["tv"]},
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
+    entity_id = er.async_get(hass).async_get_entity_id(
+        MEDIA_PLAYER_DOMAIN, DOMAIN, f"{tokens.server_id}:{device_id}"
+    )
+    assert entity_id is not None
+    return entry, entity_id
+
+
 async def _state_becomes(hass: HomeAssistant, entity_id: str, state: str) -> None:
     """Wait for an entity to take a state, as Pley's events tell Home Assistant."""
     current = None
@@ -447,7 +484,6 @@ async def test_a_tv_plays_and_takes_commands(
     world: World,
     web: ClientSession,
     tv: StandInTV,
-    entity_registry: er.EntityRegistry,
 ) -> None:
     """Test a TV is idle while its app is open, plays, obeys and is cast to, then is off."""
     client = await _home_assistant(hass, pley, world, web)
@@ -458,30 +494,8 @@ async def test_a_tv_plays_and_takes_commands(
     assert receiver.kind is DeviceKind.TV
     assert receiver.device_id.startswith("app-")
 
-    tokens = client.tokens
-    assert tokens is not None
-    account = await client.me()
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        title="Pley",
-        unique_id=tokens.server_id,
-        data={
-            CONF_URL: pley.url,
-            CONF_TOKENS: tokens.as_dict(),
-            CONF_USER_ID: account.id,
-            CONF_USERNAME: account.username,
-        },
-        options={OPT_SHOWN_KINDS: ["tv"]},
-    )
-    entry.add_to_hass(hass)
-    await hass.config_entries.async_setup(entry.entry_id)
-    await hass.async_block_till_done()
-    assert entry.state is ConfigEntryState.LOADED
+    entry, entity_id = await _add_entry(hass, pley, client, receiver.device_id)
     client = entry.runtime_data.client
-    entity_id = entity_registry.async_get_entity_id(
-        MEDIA_PLAYER_DOMAIN, DOMAIN, f"{tokens.server_id}:{receiver.device_id}"
-    )
-    assert entity_id is not None
     await _state_becomes(hass, entity_id, MediaPlayerState.IDLE)
 
     session_id = await tv.play(world.film_id)
@@ -525,6 +539,56 @@ async def test_a_tv_plays_and_takes_commands(
     await _state_becomes(hass, entity_id, MediaPlayerState.IDLE)
     await tv.close()
     await _state_becomes(hass, entity_id, MediaPlayerState.OFF)
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_pick_from_the_library(
+    hass: HomeAssistant, pley: Pley, world: World, web: ClientSession, tv: StandInTV
+) -> None:
+    """Test the TV's media browser lists the library, the film picked there plays on it, and search finds it."""
+    client = await _home_assistant(hass, pley, world, web)
+    await tv.open()
+    (receiver,) = await client.devices()
+    entry, entity_id = await _add_entry(hass, pley, client, receiver.device_id)
+    await _state_becomes(hass, entity_id, MediaPlayerState.IDLE)
+    player = hass.data[DATA_INSTANCES][MEDIA_PLAYER_DOMAIN].get_entity(entity_id)
+    assert isinstance(player, MediaPlayerEntity)
+
+    root = await player.async_browse_media()
+    # No playlists yet, and no Live TV without a source.
+    (movies,) = root.children or ()
+    assert movies.title == "Movies"
+    library = await player.async_browse_media(
+        movies.media_content_type, movies.media_content_id
+    )
+    (film,) = [child for child in library.children or () if child.can_play]
+    assert film.media_content_id == f"pley://item/{world.film_id}"
+    assert film.media_class == MediaClass.MOVIE
+    assert film.title.startswith("Film")
+
+    await hass.services.async_call(
+        MEDIA_PLAYER_DOMAIN,
+        SERVICE_PLAY_MEDIA,
+        {
+            ATTR_ENTITY_ID: entity_id,
+            ATTR_MEDIA_CONTENT_TYPE: film.media_content_type,
+            ATTR_MEDIA_CONTENT_ID: film.media_content_id,
+        },
+        blocking=True,
+    )
+    cast = await tv.next_event(EventType.CAST)
+    assert cast.data["item_id"] == world.film_id
+    assert cast.data["from"] == "Home Assistant"
+
+    # Search finds the film by the same id, once the server has read the
+    # new title's words.
+    for _ in range(WAIT * 10):
+        found = await player.async_search_media(SearchMediaQuery(search_query="film"))
+        if found.result:
+            break
+        await asyncio.sleep(0.1)
+    assert [media.media_content_id for media in found.result] == [film.media_content_id]
 
     assert await hass.config_entries.async_unload(entry.entry_id)
 

@@ -15,6 +15,11 @@ from homeassistant.components.media_player import (  # type: ignore[attr-defined
     MediaPlayerEnqueue,
     MediaPlayerEntity,
 )
+from homeassistant.components.media_player.browse_media import (
+    BrowseMedia,
+    SearchMedia,
+    SearchMediaQuery,
+)
 from homeassistant.components.media_player.const import (
     ATTR_MEDIA_ANNOUNCE,
     ATTR_MEDIA_ENQUEUE,
@@ -24,11 +29,13 @@ from homeassistant.components.media_player.const import (
     MediaPlayerState,
     MediaType,
 )
+from homeassistant.components.media_player.errors import BrowseError, SearchError
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from .browse_media import PleyBrowser, browse_image
 from .const import DOMAIN, IMAGE_WIDTH
 from .coordinator import PleyConfigEntry, PleyCoordinator
 from .entity import PleyEntity
@@ -62,6 +69,14 @@ STATES: dict[PlayState, MediaPlayerState] = {
     PlayState.PAUSED: MediaPlayerState.PAUSED,
     PlayState.BUFFERING: MediaPlayerState.BUFFERING,
 }
+
+# What a device open to play what it's sent takes: something to play,
+# picked by its id or from the media browser, or found by a search.
+CAST_FEATURES = (
+    MediaPlayerEntityFeature.PLAY_MEDIA
+    | MediaPlayerEntityFeature.BROWSE_MEDIA
+    | MediaPlayerEntityFeature.SEARCH_MEDIA
+)
 
 # What a player's controls let a remote do; Stop works on every player.
 FEATURES: dict[Control, MediaPlayerEntityFeature] = {
@@ -265,13 +280,14 @@ class PleyPlayer(PleyEntity, MediaPlayerEntity):
         """Return what the device takes.
 
         Stop while it plays, with its player's controls if it's the
-        profile's own, and play media while it's open to play what it's sent.
+        profile's own, and play media, browsing and search while it's open
+        to play what it's sent.
         """
         features = MediaPlayerEntityFeature(0)
         if (device := self.device) is None:
             return features
         if device.receiver is not None and device.receiver.casts:
-            features |= MediaPlayerEntityFeature.PLAY_MEDIA
+            features |= CAST_FEATURES
         if (session := device.session) is not None:
             features |= MediaPlayerEntityFeature.STOP
             if device.own:
@@ -433,6 +449,35 @@ class PleyPlayer(PleyEntity, MediaPlayerEntity):
             except PleyError as err:
                 _LOGGER.debug("Couldn't fetch artwork from Pley: %s", err)
         return None, None
+
+    def _browser[E: HomeAssistantError](self, error: type[E]) -> PleyBrowser:
+        """Return the media browser of a device open to play what it's sent."""
+        if (device := self.device) is None or (receiver := device.receiver) is None:
+            raise error(translation_domain=DOMAIN, translation_key="not_receiver")
+        return PleyBrowser(
+            self.coordinator.client, receiver.casts, self.get_browse_image_url
+        )
+
+    async def async_browse_media(
+        self,
+        media_content_type: MediaType | str | None = None,
+        media_content_id: str | None = None,
+    ) -> BrowseMedia:
+        """Return a folder of what the device plays: libraries, playlists, Live TV."""
+        return await self._browser(BrowseError).browse(media_content_id)
+
+    async def async_search_media(self, query: SearchMediaQuery) -> SearchMedia:
+        """Return what a search of Pley finds that the device plays."""
+        return await self._browser(SearchError).search(query)
+
+    async def async_get_browse_image(
+        self,
+        media_content_type: str,
+        media_content_id: str,
+        media_image_id: str | None = None,
+    ) -> tuple[bytes | None, str | None]:
+        """Fetch a picture the media browser shows from the server, which needs the token."""
+        return await browse_image(self.coordinator.client, media_image_id)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

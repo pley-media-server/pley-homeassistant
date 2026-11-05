@@ -245,7 +245,9 @@ async def test_only_on_devices_open_to_it(
 
     for entity_id in (TV, "media_player.ada_s_phone", "media_player.firefox_on_macos"):
         features = hass.states.get(entity_id).attributes[ATTR_SUPPORTED_FEATURES]
-        assert not features & Feature.PLAY_MEDIA
+        assert not features & (
+            Feature.PLAY_MEDIA | Feature.BROWSE_MEDIA | Feature.SEARCH_MEDIA
+        )
         with pytest.raises(HomeAssistantError):
             await _play(hass, "pley://item/42", entity_id)
 

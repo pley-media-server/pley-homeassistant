@@ -296,6 +296,15 @@
     },
     "cast_failed": {
       "message": "The Pley server refused to play it: {error}"
+    },
+    "invalid_browse_id": {
+      "message": "{media_id} isn't a folder or a title Pley's media browser opens."
+    },
+    "browse_not_found": {
+      "message": "That library, title, playlist or list of channels is gone, or this Pley profile can't see it."
+    },
+    "browse_failed": {
+      "message": "Can't fetch it from the Pley server: {error}"
     }
   }
 }

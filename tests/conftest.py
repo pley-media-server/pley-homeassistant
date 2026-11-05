@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 import hashlib
 import hmac
 import json
+import re
 import time
 from typing import Any
 from unittest.mock import AsyncMock, PropertyMock, patch
@@ -338,21 +339,60 @@ def requests_to(
     ]
 
 
+# What the media browser asks the server for: libraries and their rows and
+# titles, titles and what they hold, playlists, Live TV and search.
+LIBRARY_PATHS = re.compile(
+    r"/api/(libraries(/\d+/(items|hubs))?|items/\d+(/children)?|playlists(/\d+)?"
+    r"|live(/groups|/browse)?|search)"
+)
+
+
+def page(entries: list[Any], url: URL, key: str) -> dict[str, Any]:
+    """Return the page of a list a request's offset and limit ask for."""
+    offset = int(url.query.get("offset", 0))
+    limit = int(url.query.get("limit", len(entries)))
+    return {"total": len(entries), key: entries[offset : offset + limit]}
+
+
 class FakePley:
     """A Pley server, signing Home Assistant in as ME, whose devices tests change.
 
-    Its event stream waits until a test pushes something down it.
+    Its event stream waits until a test pushes something down it. What's in
+    its libraries and Live TV is for the media browser.
     """
 
     def __init__(self, aioclient_mock: AiohttpClientMocker) -> None:
-        """Answer as the server, with no devices and nothing playing."""
+        """Answer as the server, with no devices, nothing playing and nothing in it."""
         self.receivers: list[dict[str, Any]] = []
         self.sessions: list[dict[str, Any]] = []
         self.activity: list[dict[str, Any]] = []
         # A status to answer a path with in place of its list.
         self.statuses: dict[str, int] = {}
         self.events = MockLongPollSideEffect()
+        self.libraries: list[dict[str, Any]] = []
+        # By library: its titles A to Z, and its rows.
+        self.titles: dict[int, list[dict[str, Any]]] = {}
+        self.hubs: dict[int, list[dict[str, Any]]] = {}
+        # Titles by id, and what each holds.
+        self.items: dict[int, dict[str, Any]] = {}
+        self.children: dict[int, list[dict[str, Any]]] = {}
+        # Playlists with their entries, by id.
+        self.playlists: dict[int, dict[str, Any]] = {}
+        self.live: dict[str, Any] = {"available": False, "allowed": False}
+        self.groups: dict[str, Any] = {
+            "total": 0,
+            "favorites": 0,
+            "recent": 0,
+            "groups": [],
+        }
+        # A list's channels by its category, or its group's name.
+        self.channels: dict[str, list[dict[str, Any]]] = {}
+        self.found: dict[str, Any] = {"items": [], "people": [], "channels": []}
         mock_server(aioclient_mock)
+        aioclient_mock.get(
+            re.compile(rf"^{re.escape(SERVER_URL)}{LIBRARY_PATHS.pattern}(\?.*)?$"),
+            side_effect=self._library,
+        )
         for path, answer in (
             ("/api/remote/devices", lambda: self.receivers),
             ("/api/sessions", lambda: self.sessions),
@@ -383,6 +423,63 @@ class FakePley:
             return AiohttpClientMockResponse(method, url, json=answer())
 
         return respond
+
+    def _library_answer(self, url: URL) -> Any:
+        """Return what the server answers a request of the media browser, None for 404."""
+        parts = url.path.removeprefix("/api/").split("/")
+        match parts:
+            case ["libraries"]:
+                return self.libraries
+            case ["libraries", library_id, "items"] if int(library_id) in self.titles:
+                return page(self.titles[int(library_id)], url, "items")
+            case ["libraries", library_id, "hubs"] if int(library_id) in self.hubs:
+                return {"hubs": self.hubs[int(library_id)]}
+            case ["items", item_id] if int(item_id) in self.items:
+                return self.items[int(item_id)]
+            case ["items", item_id, "children"] if int(item_id) in self.items:
+                return {"items": self.children.get(int(item_id), [])}
+            case ["playlists"]:
+                return {
+                    "playlists": [
+                        {
+                            key: value
+                            for key, value in playlist.items()
+                            if key != "entries"
+                        }
+                        for playlist in self.playlists.values()
+                    ]
+                }
+            case ["playlists", playlist_id] if int(playlist_id) in self.playlists:
+                return self.playlists[int(playlist_id)]
+            case ["live", *_]:
+                return self._live_answer(url, parts[1:])
+            case ["search"]:
+                return self.found
+        return None
+
+    def _live_answer(self, url: URL, parts: list[str]) -> Any:
+        """Return what the server answers about Live TV."""
+        match parts:
+            case []:
+                return self.live
+            case ["groups"]:
+                return self.groups
+        category = url.query["category"]
+        name = url.query["group"] if category == "group" else category
+        return page(self.channels.get(name, []), url, "channels") | {
+            "offset": int(url.query.get("offset", 0))
+        }
+
+    async def _library(
+        self, method: str, url: URL, data: Any
+    ) -> AiohttpClientMockResponse:
+        if status := self.statuses.get(url.path):
+            return AiohttpClientMockResponse(method, url, status=status)
+        if (answer := self._library_answer(url)) is None:
+            return AiohttpClientMockResponse(
+                method, url, status=404, json={"code": "not_found"}
+            )
+        return AiohttpClientMockResponse(method, url, json=answer)
 
     def push(self, *events: dict[str, Any]) -> None:
         """Send events down the stream, which then ends: it connects again."""

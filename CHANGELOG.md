@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Pick what to play from your Pley library
+
+Home Assistant's media browser now lists what's in Pley for a TV whose Pley
+app is open: your libraries in your order, each with its rows, such as
+Continue Watching and Recently Added, then every title A to Z; your
+playlists; and Live TV, with your favourite channels, those watched lately
+and the lineup's groups, with all channels too when some are in no group.
+Shows open to seasons and episodes, artists to albums and tracks, with their
+pictures. Picking one plays it on the TV, as `media_player.play_media` does
+with the same `pley://` IDs. Search in the media browser finds titles and
+channels too. A folder lists up to 2,000 titles, entries or channels; search
+finds the rest.
+
 ## 0.1.0 (2026-11-05)
 
 The first release of Pley for Home Assistant. It needs Home Assistant 2026.9

@@ -15,6 +15,13 @@ ACTIVITY_PATH: Final = "/api/activity"
 SESSIONS_PATH: Final = "/api/sessions"
 DEVICES_PATH: Final = "/api/remote/devices"
 EVENTS_PATH: Final = "/api/events"
+LIBRARIES_PATH: Final = "/api/libraries"
+ITEMS_PATH: Final = "/api/items"
+PLAYLISTS_PATH: Final = "/api/playlists"
+LIVE_PATH: Final = "/api/live"
+LIVE_GROUPS_PATH: Final = "/api/live/groups"
+LIVE_BROWSE_PATH: Final = "/api/live/browse"
+SEARCH_PATH: Final = "/api/search"
 
 DEVICE_CODE_GRANT: Final = "urn:ietf:params:oauth:grant-type:device_code"
 REFRESH_TOKEN_GRANT: Final = "refresh_token"
@@ -47,3 +54,14 @@ MAX_EVENT_BYTES: Final = 1024 * 1024
 # The only kinds of picture Pley serves; anything else is refused.
 IMAGE_TYPES: Final = frozenset({"image/jpeg", "image/png", "image/webp", "image/gif"})
 MAX_IMAGE_BYTES: Final = 10 * 1024 * 1024
+
+# Long lists (a library's titles, a group's channels) come a page at a time:
+# small enough to read quickly, and well under the server's own largest page.
+PAGE_SIZE: Final = 200
+# The most a list is read to, however much the caller asks for: past this,
+# the pages would take longer to fetch than anyone waits.
+MAX_LISTED: Final = 5000
+# The most of each kind a search finds, as the server allows.
+MAX_SEARCH_RESULTS: Final = 200
+# A search is for a title or a name: longer text is cut.
+MAX_QUERY_LENGTH: Final = 200

@@ -88,6 +88,41 @@ class CastKind(StrEnum):
     LIVE = "live"
 
 
+class LibraryKind(StrEnum):
+    """What a library holds."""
+
+    MOVIES = "movies"
+    SHOWS = "shows"
+    MUSIC = "music"
+    UNKNOWN = "unknown"
+
+
+class PlaylistKind(StrEnum):
+    """Whether a playlist holds films and episodes, or tracks."""
+
+    VIDEO = "video"
+    AUDIO = "audio"
+    UNKNOWN = "unknown"
+
+
+class LiveCategory(StrEnum):
+    """A list of Live TV channels."""
+
+    ALL = "all"
+    FAVORITES = "favorites"
+    RECENT = "recent"
+    GROUP = "group"
+
+
+class PictureKind(StrEnum):
+    """A picture the server serves: one of a title's, or a channel's logo."""
+
+    POSTER = "poster"
+    BACKDROP = "backdrop"
+    THUMB = "thumb"
+    LOGO = "logo"
+
+
 def _str(value: Any) -> str | None:
     return value if isinstance(value, str) else None
 
@@ -146,6 +181,11 @@ def _members[E: StrEnum](kind: type[E], values: Any) -> frozenset[E]:
 def _scopes(value: Any) -> frozenset[str]:
     """Return the scopes in a space-separated string, as OAuth writes them."""
     return frozenset(value.split()) if isinstance(value, str) else frozenset()
+
+
+def _count(value: Any) -> int:
+    """Return a count, 0 for one that isn't."""
+    return max(_int(value) or 0, 0)
 
 
 @dataclass(frozen=True)
@@ -396,9 +436,14 @@ class Item:
         )
 
 
+def _programme(value: Any) -> Mapping[str, Any]:
+    """Return a programme's fields: lists give an object, sessions its title."""
+    return value if isinstance(value, dict) else {"title": value}
+
+
 @dataclass(frozen=True)
 class Channel:
-    """The Live TV channel a session watches."""
+    """A Live TV channel: the one a session watches, or one in a list."""
 
     id: int
     name: str
@@ -417,15 +462,16 @@ class Channel:
         data = _dict(data)
         if (channel_id := _int(data.get("id"))) is None:
             return None
+        now = _programme(data.get("now"))
         return cls(
             id=channel_id,
             name=_str(data.get("name")) or "",
             number=_text(data.get("number")),
             logo=_text(data.get("logo")),
-            now=_text(data.get("now")),
-            now_start=_timestamp(data.get("now_start")),
-            now_stop=_timestamp(data.get("now_stop")),
-            next=_text(data.get("next")),
+            now=_text(now.get("title")),
+            now_start=_timestamp(now.get("start", data.get("now_start"))),
+            now_stop=_timestamp(now.get("stop", data.get("now_stop"))),
+            next=_text(_programme(data.get("next")).get("title")),
         )
 
 
@@ -525,3 +571,227 @@ class Receiver:
 def parse_list[T](items: Any, parse: Callable[[Any], T | None]) -> list[T]:
     """Return what parses of a list, skipping what doesn't."""
     return [parsed for item in _list(items) if (parsed := parse(item)) is not None]
+
+
+# What a picture's address on the server looks like: a title's, by its id
+# and kind, or a channel's logo. The query (a cache buster) doesn't matter.
+_ITEM_PICTURE = re.compile(
+    r"/api/items/([1-9][0-9]{0,17})/images/(poster|backdrop|thumb)"
+)
+_CHANNEL_LOGO = re.compile(r"/api/live/channels/([1-9][0-9]{0,17})/logo")
+
+
+@dataclass(frozen=True)
+class Picture:
+    """A picture on the server: a title's poster, backdrop or thumb, or a channel's logo.
+
+    Named by its kind and the id of what it belongs to, so the address it is
+    fetched from is always the server's own.
+    """
+
+    kind: PictureKind
+    # The title's or the channel's id: a track's poster is its album's.
+    owner_id: int
+
+    @classmethod
+    def from_url(cls, url: Any) -> Self | None:
+        """Return the picture at an address the server gave, if it is one."""
+        if not isinstance(url, str):
+            return None
+        path = url.partition("?")[0]
+        if match := _ITEM_PICTURE.fullmatch(path):
+            return cls(PictureKind(match[2]), int(match[1]))
+        if match := _CHANNEL_LOGO.fullmatch(path):
+            return cls(PictureKind.LOGO, int(match[1]))
+        return None
+
+    @property
+    def path(self) -> str:
+        """Return the picture's address on the server."""
+        if self.kind is PictureKind.LOGO:
+            return f"/api/live/channels/{self.owner_id}/logo"
+        return f"/api/items/{self.owner_id}/images/{self.kind.value}"
+
+
+@dataclass(frozen=True)
+class Page[T]:
+    """Part of a long list, and how long the whole list is."""
+
+    total: int
+    items: tuple[T, ...]
+
+    @classmethod
+    def from_api(
+        cls, data: Any, key: str, parse: Callable[[Any], T | None]
+    ) -> Self | None:
+        """Return the page in an answer, whose entries are under `key`."""
+        data = _dict(data)
+        total = _int(data.get("total"))
+        if total is None or not isinstance(entries := data.get(key), list):
+            return None
+        items = tuple(parse_list(entries, parse))
+        return cls(total=max(total, len(items)), items=items)
+
+
+@dataclass(frozen=True)
+class Library:
+    """A library the profile may open, from GET /api/libraries."""
+
+    id: int
+    name: str
+    kind: LibraryKind
+    # How many films, shows or artists the profile sees in it.
+    item_count: int
+
+    @classmethod
+    def from_api(cls, data: Any) -> Self | None:
+        """Return the library an answer describes, if it has an id."""
+        data = _dict(data)
+        if (library_id := _int(data.get("id"))) is None:
+            return None
+        return cls(
+            id=library_id,
+            name=_str(data.get("name")) or "",
+            kind=_enum(LibraryKind, data.get("kind"), LibraryKind.UNKNOWN),
+            item_count=_count(data.get("item_count")),
+        )
+
+
+@dataclass(frozen=True)
+class Hub:
+    """A row of a library's titles, such as Continue Watching or Recently Added."""
+
+    # Says which row it is, and its library: "recently_added:1".
+    key: str
+    title: str
+    items: tuple[Item, ...]
+
+    @classmethod
+    def from_api(cls, data: Any) -> Self | None:
+        """Return the row an answer describes, if it has a key."""
+        data = _dict(data)
+        if (key := _text(data.get("key"))) is None:
+            return None
+        return cls(
+            key=key,
+            title=_text(data.get("title")) or key,
+            items=tuple(parse_list(data.get("items"), Item.from_api)),
+        )
+
+
+@dataclass(frozen=True)
+class Playlist:
+    """One of the profile's playlists.
+
+    From GET /api/playlists without its entries, or GET /api/playlists/{id}
+    with them, in order.
+    """
+
+    id: int
+    title: str
+    kind: PlaylistKind
+    item_count: int
+    # The address of its first entry's picture, if it has one.
+    artwork: str | None
+    entries: tuple[Item, ...]
+
+    @classmethod
+    def from_api(cls, data: Any) -> Self | None:
+        """Return the playlist an answer describes, if it has an id."""
+        data = _dict(data)
+        if (playlist_id := _int(data.get("id"))) is None:
+            return None
+        return cls(
+            id=playlist_id,
+            title=_str(data.get("title")) or "",
+            kind=_enum(PlaylistKind, data.get("kind"), PlaylistKind.UNKNOWN),
+            item_count=_count(data.get("item_count")),
+            artwork=next(filter(None, map(_text, _list(data.get("artwork")))), None),
+            entries=tuple(
+                parse_list(
+                    data.get("entries"),
+                    lambda entry: Item.from_api(_dict(entry).get("item")),
+                )
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class LiveStatus:
+    """Whether the profile may watch Live TV, from GET /api/live."""
+
+    # Open to the profile, and with channels to watch.
+    allowed: bool
+    available: bool
+
+    @classmethod
+    def from_api(cls, data: Any) -> Self | None:
+        """Return what an answer says, if it is an object."""
+        if not isinstance(data, dict):
+            return None
+        return cls(
+            allowed=data.get("allowed") is True,
+            available=data.get("available") is True,
+        )
+
+
+@dataclass(frozen=True)
+class LiveGroup:
+    """A group of Live TV channels, as the provider's lineup names it."""
+
+    name: str
+    count: int
+
+    @classmethod
+    def from_api(cls, data: Any) -> Self | None:
+        """Return the group an answer describes, if it has a name."""
+        data = _dict(data)
+        if (name := _text(data.get("name"))) is None:
+            return None
+        return cls(name=name, count=_count(data.get("count")))
+
+
+@dataclass(frozen=True)
+class LiveGroups:
+    """The lineup's groups in its order, from GET /api/live/groups.
+
+    A channel the lineup puts in no group is in none of them, but counts in
+    the total.
+    """
+
+    # How many channels there are in all, how many are the profile's
+    # favourites, and how many it watched lately.
+    total: int
+    favorites: int
+    recent: int
+    groups: tuple[LiveGroup, ...]
+
+    @classmethod
+    def from_api(cls, data: Any) -> Self | None:
+        """Return the groups in an answer, if it lists them."""
+        if not isinstance(data, dict) or not isinstance(data.get("groups"), list):
+            return None
+        return cls(
+            total=_count(data.get("total")),
+            favorites=_count(data.get("favorites")),
+            recent=_count(data.get("recent")),
+            groups=tuple(parse_list(data["groups"], LiveGroup.from_api)),
+        )
+
+
+@dataclass(frozen=True)
+class SearchResults:
+    """The titles and Live TV channels a search finds, closest first."""
+
+    items: tuple[Item, ...]
+    channels: tuple[Channel, ...]
+
+    @classmethod
+    def from_api(cls, data: Any) -> Self | None:
+        """Return the results in an answer, if it is an object."""
+        if not isinstance(data, dict):
+            return None
+        return cls(
+            items=tuple(parse_list(data.get("items"), Item.from_api)),
+            channels=tuple(parse_list(data.get("channels"), Channel.from_api)),
+        )

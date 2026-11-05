@@ -2,6 +2,7 @@
 
 import asyncio
 from datetime import UTC, datetime
+import json
 import time
 from typing import Any
 from unittest.mock import patch
@@ -11,7 +12,10 @@ from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import pytest
-from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
+from pytest_homeassistant_custom_component.test_util.aiohttp import (
+    AiohttpClientMocker,
+    AiohttpClientMockResponse,
+)
 
 from custom_components.pley.pleyclient import (
     Account,
@@ -22,13 +26,25 @@ from custom_components.pley.pleyclient import (
     DeviceDenied,
     DeviceExpired,
     DeviceKind,
+    Hub,
     InvalidAddress,
     IssuerMismatch,
     Item,
     ItemKind,
+    Library,
+    LibraryKind,
+    LiveCategory,
+    LiveGroup,
+    LiveGroups,
+    LiveStatus,
     NotAPleyServer,
     NotCastable,
     NotControllable,
+    Page,
+    Picture,
+    PictureKind,
+    Playlist,
+    PlaylistKind,
     PlayMethod,
     PlayState,
     PleyAuthError,
@@ -38,6 +54,7 @@ from custom_components.pley.pleyclient import (
     PleyForbidden,
     PleyNotFound,
     Receiver,
+    SearchResults,
     ServerInfo,
     ServerMetadata,
     ServerTooOld,
@@ -50,6 +67,7 @@ from custom_components.pley.pleyclient import (
     is_local_address,
     normalize_address,
 )
+from custom_components.pley.pleyclient.client import MAX_JSON_BYTES
 from custom_components.pley.pleyclient.models import parse_list
 
 from .conftest import (
@@ -530,6 +548,25 @@ async def test_answer_too_large(
         pytest.raises(NotAPleyServer),
     ):
         await signed_out.server()
+
+
+async def test_long_playlist(
+    client: PleyClient, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Test a playlist may be larger than other answers, up to its own bound."""
+    mock_proof(aioclient_mock)
+    entry = {"entry_id": 1, "item": {**SHOW, "summary": "x" * 1000}}
+    answer = {"id": 5, "title": "Every episode", "entries": [entry] * 5000}
+    assert len(json.dumps(answer)) > MAX_JSON_BYTES
+    aioclient_mock.get(f"{SERVER_URL}/api/playlists/5", json=answer)
+    playlist = await client.playlist(5)
+    assert len(playlist.entries) == 5000
+
+    with (
+        patch("custom_components.pley.pleyclient.client.MAX_PLAYLIST_BYTES", 10),
+        pytest.raises(PleyError, match="too long to list"),
+    ):
+        await client.playlist(5)
 
 
 async def test_metadata_checked(
@@ -1232,3 +1269,399 @@ async def test_revoke_refused(
     )
     with pytest.raises(PleyError, match="unauthorized_client"):
         await client.revoke()
+
+
+SHOW = {
+    "id": 290,
+    "library_id": 2,
+    "kind": "show",
+    "title": "Lost",
+    "year": 2004,
+    "poster_url": "/api/items/290/images/poster?v=1729600000",
+}
+LISTED_CHANNEL = {
+    "id": 7,
+    "source_id": 1,
+    "source_uid": "a1b2c3",
+    "name": "News 24",
+    "number": "24",
+    "group": "UK| News",
+    "logo": "/api/live/channels/7/logo?v=0a1b2c3d",
+    "favorite": True,
+    "has_guide": True,
+    "now": {"channel_id": 7, "start": 1793000000, "stop": 1793001800, "title": "News"},
+    "next": {
+        "channel_id": 7,
+        "start": 1793001800,
+        "stop": 1793003600,
+        "title": "Sport",
+    },
+}
+
+
+def test_library() -> None:
+    """Test reading a library, and one of a kind a newer server has."""
+    assert Library.from_api(
+        {"id": 1, "name": "Movies", "kind": "movies", "item_count": 12, "paths": []}
+    ) == Library(id=1, name="Movies", kind=LibraryKind.MOVIES, item_count=12)
+    assert Library.from_api({"id": 2, "kind": "photos", "item_count": -1}) == Library(
+        id=2, name="", kind=LibraryKind.UNKNOWN, item_count=0
+    )
+    assert Library.from_api({"name": "Movies"}) is None
+
+
+def test_hub() -> None:
+    """Test reading a library's row, skipping titles without an id."""
+    hub = Hub.from_api(
+        {
+            "key": "recently_added:2",
+            "title": "Recently Added Shows",
+            "library_id": 2,
+            "items": [SHOW, {"title": "No id"}],
+        }
+    )
+    assert hub is not None
+    assert (hub.key, hub.title) == ("recently_added:2", "Recently Added Shows")
+    assert [item.id for item in hub.items] == [290]
+    assert Hub.from_api({"key": "top_rated:2"}) == Hub(
+        key="top_rated:2", title="top_rated:2", items=()
+    )
+    assert Hub.from_api({"title": "No key", "items": [SHOW]}) is None
+
+
+def test_playlist() -> None:
+    """Test reading a playlist, its first picture and its entries in order."""
+    playlist = Playlist.from_api(
+        {
+            "id": 5,
+            "title": "Road trip",
+            "kind": "audio",
+            "item_count": 2,
+            "artwork": [None, "", "/api/items/904/images/poster?v=1"],
+            "entries": [
+                {"entry_id": 1, "item": SHOW},
+                {"entry_id": 2},
+                "entry",
+                {"entry_id": 3, "item": SHOW},
+            ],
+        }
+    )
+    assert playlist is not None
+    assert playlist.kind is PlaylistKind.AUDIO
+    assert playlist.artwork == "/api/items/904/images/poster?v=1"
+    assert [item.id for item in playlist.entries] == [290, 290]
+    listed = Playlist.from_api({"id": 6, "kind": "slideshow", "artwork": "x"})
+    assert listed == Playlist(
+        id=6,
+        title="",
+        kind=PlaylistKind.UNKNOWN,
+        item_count=0,
+        artwork=None,
+        entries=(),
+    )
+    assert Playlist.from_api({"title": "No id"}) is None
+
+
+def test_live_tv() -> None:
+    """Test reading whether Live TV is open, its groups, and a listed channel."""
+    assert LiveStatus.from_api(
+        {"available": True, "allowed": True, "channels": 3, "recent": []}
+    ) == LiveStatus(allowed=True, available=True)
+    assert LiveStatus.from_api({"allowed": "yes"}) == LiveStatus(
+        allowed=False, available=False
+    )
+    assert LiveStatus.from_api([]) is None
+
+    groups = LiveGroups.from_api(
+        {
+            "total": 3,
+            "favorites": 1,
+            "recent": "2",
+            "groups": [
+                {"name": "UK| News", "region": "UK", "label": "News", "count": 2},
+                {"name": "", "count": 1},
+                {"count": 4},
+            ],
+        }
+    )
+    # A group's name says what it is: an unnamed one is no group.
+    assert groups == LiveGroups(
+        total=3,
+        favorites=1,
+        recent=0,
+        groups=(LiveGroup(name="UK| News", count=2),),
+    )
+    assert LiveGroups.from_api({"favorites": 1}) is None
+
+    channel = Channel.from_api(LISTED_CHANNEL)
+    assert channel is not None
+    assert (channel.now, channel.next) == ("News", "Sport")
+    assert channel.now_start == datetime.fromtimestamp(1793000000, UTC)
+    assert channel.now_stop == datetime.fromtimestamp(1793001800, UTC)
+    bare = Channel.from_api({**LISTED_CHANNEL, "now": None, "next": {"title": 5}})
+    assert bare is not None
+    assert (bare.now, bare.now_start, bare.next) == (None, None, None)
+
+
+def test_search_results() -> None:
+    """Test reading what a search finds, leaving out people."""
+    results = SearchResults.from_api(
+        {
+            "items": [SHOW, None],
+            "people": [{"id": 3, "name": "Ada"}],
+            "channels": [LISTED_CHANNEL],
+        }
+    )
+    assert results is not None
+    assert [item.id for item in results.items] == [290]
+    assert [channel.id for channel in results.channels] == [7]
+    assert SearchResults.from_api({}) == SearchResults(items=(), channels=())
+    assert SearchResults.from_api("found") is None
+
+
+@pytest.mark.parametrize(
+    ("url", "picture"),
+    [
+        ("/api/items/42/images/poster?v=1", Picture(PictureKind.POSTER, 42)),
+        ("/api/items/310/images/thumb", Picture(PictureKind.THUMB, 310)),
+        ("/api/items/42/images/backdrop?v=1", Picture(PictureKind.BACKDROP, 42)),
+        ("/api/live/channels/7/logo?v=0a1b", Picture(PictureKind.LOGO, 7)),
+        ("/api/items/42/images/cover", None),
+        ("/api/items/0/images/poster", None),
+        ("/api/items/42/images/poster/../../../oauth", None),
+        ("https://elsewhere.example.com/api/items/42/images/poster", None),
+        ("/api/live/channels/7/programs/1793000000/image", None),
+        ("/api/people/7/photo", None),
+        (None, None),
+        (42, None),
+    ],
+)
+def test_picture(url: Any, picture: Picture | None) -> None:
+    """Test a picture is known by its kind and owner, its address rebuilt from them."""
+    assert Picture.from_url(url) == picture
+    if picture is not None:
+        assert picture.path == url.partition("?")[0]
+
+
+def test_page() -> None:
+    """Test reading a page of a list, whose total counts at least what it holds."""
+    page = Page.from_api(
+        {"total": 1, "items": [SHOW, SHOW, {}]}, "items", Item.from_api
+    )
+    assert page is not None
+    assert (page.total, len(page.items)) == (2, 2)
+    for answer in ({"items": []}, {"total": 3, "items": None}, [], {"total": True}):
+        assert Page.from_api(answer, "items", Item.from_api) is None
+
+
+async def test_browse_lists(
+    client: PleyClient, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Test fetching what the media browser lists."""
+    mock_proof(aioclient_mock)
+    aioclient_mock.get(
+        f"{SERVER_URL}/api/libraries",
+        json=[{"id": 2, "name": "TV Shows", "kind": "shows"}, {}],
+    )
+    aioclient_mock.get(
+        f"{SERVER_URL}/api/libraries/2/hubs",
+        json={"hubs": [{"key": "recently_added:2", "items": [SHOW]}]},
+    )
+    aioclient_mock.get(f"{SERVER_URL}/api/items/290", json=SHOW)
+    aioclient_mock.get(
+        f"{SERVER_URL}/api/items/290/children",
+        json={"items": [{"id": 300, "kind": "season", "title": "Season 4"}]},
+    )
+    aioclient_mock.get(
+        f"{SERVER_URL}/api/playlists", json={"playlists": [{"id": 5, "title": "Mix"}]}
+    )
+    aioclient_mock.get(
+        f"{SERVER_URL}/api/playlists/5",
+        json={"id": 5, "title": "Mix", "entries": [{"entry_id": 1, "item": SHOW}]},
+    )
+    aioclient_mock.get(
+        f"{SERVER_URL}/api/live", json={"allowed": True, "available": True}
+    )
+    aioclient_mock.get(
+        f"{SERVER_URL}/api/live/groups",
+        json={"total": 1, "favorites": 0, "recent": 0, "groups": [{"name": "News"}]},
+    )
+    aioclient_mock.get(
+        f"{SERVER_URL}/api/live/browse",
+        json={"total": 1, "offset": 0, "channels": [LISTED_CHANNEL]},
+    )
+
+    assert [library.name for library in await client.libraries()] == ["TV Shows"]
+    assert [hub.key for hub in await client.hubs(2)] == ["recently_added:2"]
+    assert (await client.item(290)).title == "Lost"
+    assert [child.id for child in await client.children(290)] == [300]
+    assert [playlist.id for playlist in await client.playlists()] == [5]
+    assert [item.id for item in (await client.playlist(5)).entries] == [290]
+    assert (await client.live()).available
+    assert [group.name for group in (await client.live_groups()).groups] == ["News"]
+    page = await client.live_channels(LiveCategory.GROUP, 50, "UK| News")
+    assert [channel.id for channel in page.items] == [7]
+    assert page.total == 1
+    (request,) = requests_to(aioclient_mock, "GET", "/api/live/browse")
+    assert dict(request[1].query) == {
+        "category": "group",
+        "group": "UK| News",
+        "offset": "0",
+        "limit": "50",
+    }
+    await client.live_channels(LiveCategory.FAVORITES, 50)
+    assert "group" not in aioclient_mock.mock_calls[-1][1].query
+
+
+def _pages(total: int, served: int | None = None) -> Any:
+    """Answer a library's titles a page at a time, of `served` titles at most."""
+
+    async def answer(method: str, url: Any, data: Any) -> AiohttpClientMockResponse:
+        offset, limit = int(url.query["offset"]), int(url.query["limit"])
+        count = max(min(served if served is not None else limit, total - offset), 0)
+        items = [{"id": offset + i + 1, "kind": "movie"} for i in range(count)]
+        return AiohttpClientMockResponse(
+            method, url, json={"total": total, "items": items}
+        )
+
+    return answer
+
+
+@pytest.mark.parametrize(
+    ("total", "limit", "served", "offsets", "count"),
+    [
+        (450, 2000, None, ["0", "200", "400"], 450),
+        (400, 2000, None, ["0", "200"], 400),
+        (450, 250, None, ["0", "200"], 250),
+        (450, 2000, 50, ["0"], 50),
+        (450, 0, None, ["0"], 1),
+        (10**6, 10**6, None, [str(offset) for offset in range(0, 5000, 200)], 5000),
+        (0, 2000, None, ["0"], 0),
+    ],
+    ids=[
+        "every page",
+        "pages ending at the total",
+        "up to the limit",
+        "short page",
+        "one at least",
+        "no more than the most",
+        "empty",
+    ],
+)
+async def test_pages(
+    client: PleyClient,
+    aioclient_mock: AiohttpClientMocker,
+    total: int,
+    limit: int,
+    served: int | None,
+    offsets: list[str],
+    count: int,
+) -> None:
+    """Test a long list is fetched a page at a time, and no further than it should be."""
+    mock_proof(aioclient_mock)
+    aioclient_mock.get(
+        f"{SERVER_URL}/api/libraries/1/items", side_effect=_pages(total, served)
+    )
+    page = await client.library_items(1, limit)
+    requests = requests_to(aioclient_mock, "GET", "/api/libraries/1/items")
+    assert [request[1].query["offset"] for request in requests] == offsets
+    assert all(request[1].query["sort"] == "title" for request in requests)
+    assert len(page.items) == count
+    assert page.total == max(total, count)
+
+
+async def test_page_larger_than_asked(
+    client: PleyClient, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Test a server that answers more than a page asks for is cut to the limit."""
+    mock_proof(aioclient_mock)
+    aioclient_mock.get(
+        f"{SERVER_URL}/api/libraries/1/items",
+        json={"total": 3, "items": [{"id": 1}, {"id": 2}, {"id": 3}]},
+    )
+    page = await client.library_items(1, 2)
+    assert [item.id for item in page.items] == [1, 2]
+    assert page.total == 3
+
+
+@pytest.mark.parametrize(
+    ("path", "answer", "call"),
+    [
+        ("/api/libraries", {"libraries": []}, PleyClient.libraries),
+        ("/api/libraries/1/hubs", [], lambda c: c.hubs(1)),
+        ("/api/libraries/1/items", {"items": []}, lambda c: c.library_items(1, 10)),
+        ("/api/items/42", {"title": "No id"}, lambda c: c.item(42)),
+        ("/api/items/42/children", {"items": None}, lambda c: c.children(42)),
+        ("/api/playlists", [], PleyClient.playlists),
+        ("/api/playlists/5", {"title": "No id"}, lambda c: c.playlist(5)),
+        ("/api/live", [], PleyClient.live),
+        ("/api/live/groups", {"groups": None}, PleyClient.live_groups),
+        (
+            "/api/live/browse",
+            {"channels": []},
+            lambda c: c.live_channels(LiveCategory.ALL, 10),
+        ),
+        ("/api/search", [], lambda c: c.search("lost", 10)),
+    ],
+)
+async def test_unexpected_browse_answers(
+    client: PleyClient,
+    aioclient_mock: AiohttpClientMocker,
+    path: str,
+    answer: Any,
+    call: Any,
+) -> None:
+    """Test browsing answers of the wrong shape raise the client's error."""
+    mock_proof(aioclient_mock)
+    aioclient_mock.get(f"{SERVER_URL}{path}", json=answer)
+    with pytest.raises(PleyError):
+        await call(client)
+
+
+async def test_search(client: PleyClient, aioclient_mock: AiohttpClientMocker) -> None:
+    """Test a search is cut to a sensible length, and finds no more than asked."""
+    mock_proof(aioclient_mock)
+    aioclient_mock.get(
+        f"{SERVER_URL}/api/search",
+        json={
+            "items": [SHOW, {**SHOW, "id": 291}, {**SHOW, "id": 292}],
+            "people": [],
+            "channels": [LISTED_CHANNEL, {**LISTED_CHANNEL, "id": 8}],
+        },
+    )
+    results = await client.search(f"  {'lost ' * 100}  ", 2)
+    assert [item.id for item in results.items] == [290, 291]
+    assert [channel.id for channel in results.channels] == [7, 8]
+    (request,) = requests_to(aioclient_mock, "GET", "/api/search")
+    assert request[1].query["q"] == ("lost " * 40).strip()
+    assert request[1].query["limit"] == "2"
+
+    await client.search("lost", 1000)
+    assert aioclient_mock.mock_calls[-1][1].query["limit"] == "200"
+    await client.search("lost", 0)
+    assert aioclient_mock.mock_calls[-1][1].query["limit"] == "1"
+
+
+async def test_search_for_nothing(
+    client: PleyClient, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Test a search for nothing asks the server nothing."""
+    assert await client.search(" \n ", 10) == SearchResults(items=(), channels=())
+    assert aioclient_mock.mock_calls == []
+
+
+async def test_picture_fetched(
+    client: PleyClient, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Test a picture is fetched from its owner's address, at a width."""
+    mock_proof(aioclient_mock)
+    aioclient_mock.get(
+        f"{SERVER_URL}/api/live/channels/7/logo",
+        content=b"logo",
+        headers={"Content-Type": "image/png"},
+    )
+    assert await client.picture(Picture(PictureKind.LOGO, 7), 400) == (
+        b"logo",
+        "image/png",
+    )
+    assert aioclient_mock.mock_calls[-1][1].query == {"w": "400"}
