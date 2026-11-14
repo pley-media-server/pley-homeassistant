@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+A TV that the Pley server casts to with Google Cast or AirPlay doesn't get a
+media player of its own. Home Assistant's Google Cast and Apple TV
+integrations already show those TVs.
+
 ## 0.2.0 (2026-11-05)
 
 ### Pick what to play from your Pley library
