@@ -6,7 +6,7 @@ from contextlib import aclosing
 from dataclasses import dataclass
 from datetime import UTC, datetime
 import logging
-from typing import Any
+from typing import Any, Final
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_URL
@@ -126,6 +126,10 @@ def _reported(session: Session) -> datetime:
     return session.updated_at or _LONG_AGO
 
 
+# Device IDs of the TVs the Pley server casts to itself.
+SERVER_CAST_PREFIXES: Final = ("cast:", "airplay:")
+
+
 def merge_devices(
     receivers: Iterable[Receiver],
     own_sessions: Iterable[Session],
@@ -136,7 +140,8 @@ def merge_devices(
 
     `own_sessions` are the profile's, with what their players obey, and
     `all_sessions` everyone's an administrator sees, the profile's included
-    without their controls: those are taken from `own_sessions`.
+    without their controls: those are taken from `own_sessions`. Sessions
+    the server casts to a Google Cast or AirPlay device are left out.
     """
     own = list(own_sessions)
     own_ids = {session.session_id for session in own}
@@ -150,6 +155,11 @@ def merge_devices(
         # A stopped session plays nothing: it is only on the list until its
         # player says goodbye.
         if candidate.state is PlayState.STOPPED:
+            continue
+        # Pley plays these on a Google Cast or AirPlay device by itself.
+        # Home Assistant's own integrations already show those TVs, so a
+        # second media player for the same TV would only get in the way.
+        if candidate.device_id.startswith(SERVER_CAST_PREFIXES):
             continue
         current = playing.get(candidate.device_id)
         if current is None or _reported(candidate) >= _reported(current[0]):

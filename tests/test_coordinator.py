@@ -131,6 +131,18 @@ def test_merge_stopped() -> None:
     assert merge_devices([], [], [_session(stopped)], user_id=1) == {}
 
 
+def test_merge_leaves_out_casts() -> None:
+    """Test a TV the server casts to gets no device: Home Assistant has its own."""
+    cast = {**TV_SESSION, "session_id": "s-cast", "device_id": "cast:9f8e"}
+    airplay = {
+        **OTHERS_SESSION,
+        "session_id": "s-airplay",
+        "device_id": "airplay:a1b2c3d4e5f6",
+    }
+    devices = merge_devices([], [_session(cast)], [_session(airplay)], user_id=1)
+    assert devices == {}
+
+
 def test_merge_names_and_kinds() -> None:
     """Test a device is named by its user, and its kind found, when it doesn't say."""
     devices = merge_devices(
